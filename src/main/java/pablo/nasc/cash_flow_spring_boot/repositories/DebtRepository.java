@@ -1,4 +1,4 @@
-package br.senac.dws.cash_flow_spring_boot.repositories;
+package pablo.nasc.cash_flow_spring_boot.repositories;
 
 import pablo.nasc.cash_flow_spring_boot.entities.Debt;
 import org.springframework.data.domain.Page;
