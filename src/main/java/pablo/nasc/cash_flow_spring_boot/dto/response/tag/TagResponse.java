@@ -2,14 +2,15 @@ package pablo.nasc.cash_flow_spring_boot.dto.response.tag;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.hateoas.RepresentationModel;
 
 /**
- * DTO de saída para tags.
- * Endpoints: GET /tags | GET /tags/{id} | POST /tags | PUT /tags/{id}
+ * Estende RepresentationModel para suportar HATEOAS.
+ * Links adicionados pelo TagModelAssembler.
  */
 @Getter
 @AllArgsConstructor
-public class TagResponse {
+public class TagResponse extends RepresentationModel<TagResponse> {
 
     private Long id;
     private String name;

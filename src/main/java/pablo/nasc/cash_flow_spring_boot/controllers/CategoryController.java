@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.controllers;
 
+import pablo.nasc.cash_flow_spring_boot.assemblers.CategoryModelAssembler;
 import pablo.nasc.cash_flow_spring_boot.dto.request.category.CategoryRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.response.category.CategoryResponse;
 import pablo.nasc.cash_flow_spring_boot.entities.Category;
@@ -15,49 +16,30 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Controller de categorias.
- * Todos os endpoints exigem Bearer Token válido.
- * Base URL: /api/v1/categories
- */
 @RestController
 @RequestMapping("/api/v1/categories")
 @RequiredArgsConstructor
 public class CategoryController {
 
     private final CategoryRepository categoryRepository;
+    private final CategoryModelAssembler assembler;
 
-    /**
-     * GET /api/v1/categories
-     * Lista todas as categorias ativas com paginação.
-     * Query params: page, size, sort (padrão: createdAt,desc)
-     * Retorna 200 OK.
-     */
     @GetMapping
     public ResponseEntity<Page<CategoryResponse>> listActive(Pageable pageable) {
         Page<CategoryResponse> response = categoryRepository
                 .findAllByActiveTrue(pageable)
-                .map(this::toResponse);
+                .map(this::toResponse)
+                .map(assembler::toModel);
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * GET /api/v1/categories/{id}
-     * Retorna uma categoria ativa pelo id.
-     * Retorna 200 OK ou 404 Not Found.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<CategoryResponse> getById(@PathVariable Long id) {
         Category category = categoryRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", id));
-        return ResponseEntity.ok(toResponse(category));
+        return ResponseEntity.ok(assembler.toModel(toResponse(category)));
     }
 
-    /**
-     * POST /api/v1/categories
-     * Cria uma nova categoria.
-     * Retorna 201 Created ou 409 Conflict se o nome já existir.
-     */
     @PostMapping
     public ResponseEntity<CategoryResponse> create(
             @Valid @RequestBody CategoryRequest request) {
@@ -73,14 +55,9 @@ public class CategoryController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(toResponse(categoryRepository.save(category)));
+                .body(assembler.toModel(toResponse(categoryRepository.save(category))));
     }
 
-    /**
-     * PUT /api/v1/categories/{id}
-     * Atualiza completamente uma categoria existente.
-     * Retorna 200 OK ou 404 Not Found.
-     */
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponse> update(
             @PathVariable Long id,
@@ -92,14 +69,9 @@ public class CategoryController {
         category.setDescription(request.getDescription());
         category.setIconCode(request.getIconCode());
 
-        return ResponseEntity.ok(toResponse(categoryRepository.save(category)));
+        return ResponseEntity.ok(assembler.toModel(toResponse(categoryRepository.save(category))));
     }
 
-    /**
-     * DELETE /api/v1/categories/{id}
-     * Desativa a categoria (soft delete).
-     * Retorna 204 No Content ou 422 se houver dívidas ativas vinculadas.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         Category category = categoryRepository.findById(id)
@@ -118,8 +90,6 @@ public class CategoryController {
         categoryRepository.save(category);
         return ResponseEntity.noContent().build();
     }
-
-    // ── Mapeamento Entity → DTO ───────────────────────────────────────────────
 
     private CategoryResponse toResponse(Category category) {
         return new CategoryResponse(

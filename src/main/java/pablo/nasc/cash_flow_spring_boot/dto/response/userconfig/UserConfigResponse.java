@@ -2,14 +2,15 @@ package pablo.nasc.cash_flow_spring_boot.dto.response.userconfig;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.hateoas.RepresentationModel;
 
 /**
- * DTO de saída para as configurações do usuário autenticado.
- * Endpoints: GET /users/me/config | PATCH /users/me/config
+ * Estende RepresentationModel para suportar HATEOAS.
+ * Links adicionados pelo UserConfigModelAssembler.
  */
 @Getter
 @AllArgsConstructor
-public class UserConfigResponse {
+public class UserConfigResponse extends RepresentationModel<UserConfigResponse> {
 
     private Long id;
     private String preferredCurrency;

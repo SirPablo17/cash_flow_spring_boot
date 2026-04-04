@@ -2,9 +2,10 @@ package pablo.nasc.cash_flow_spring_boot.dto.response.debt;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.hateoas.RepresentationModel;
+import pablo.nasc.cash_flow_spring_boot.dto.response.category.CategoryResponse;
 import pablo.nasc.cash_flow_spring_boot.dto.response.installment.InstallmentResponse;
 import pablo.nasc.cash_flow_spring_boot.dto.response.tag.TagResponse;
-import pablo.nasc.cash_flow_spring_boot.dto.response.category.CategoryResponse;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,15 +13,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * DTO de saída completo para detalhes de uma dívida.
- * Endpoint: GET /api/v1/debts/{id}
- *
- * Inclui todos os campos e a lista completa de parcelas,
- * diferente do {@link DebtSummaryResponse} usado nas listagens.
+ * Estende RepresentationModel para suportar HATEOAS.
+ * Retornado no detalhe completo de uma dívida.
+ * Links adicionados pelo DebtModelAssembler.
  */
 @Getter
 @AllArgsConstructor
-public class DebtResponse {
+public class DebtResponse extends RepresentationModel<DebtResponse> {
 
     private Long id;
     private String title;
@@ -32,13 +31,7 @@ public class DebtResponse {
     private String creditor;
     private Boolean active;
     private LocalDateTime createdAt;
-
-    /** Categoria completa da dívida */
     private CategoryResponse category;
-
-    /** Tags associadas à dívida */
     private List<TagResponse> tags;
-
-    /** Lista completa de parcelas geradas */
     private List<InstallmentResponse> installments;
 }
