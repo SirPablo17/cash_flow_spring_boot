@@ -12,13 +12,13 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
  * Assembler responsável por adicionar links HATEOAS ao DebtResponse e DebtSummaryResponse.
  *
  * Links sempre presentes:
- *   self         → GET    /api/v1/debts/{id}
- *   installments → GET    /api/v1/debts/{id}/installments
- *   update       → PUT    /api/v1/debts/{id}
- *   collection   → GET    /api/v1/debts
+ * self         → GET    /api/v1/debts/{id}
+ * installments → GET    /api/v1/debts/{id}/installments
+ * update       → PUT    /api/v1/debts/{id}
+ * collection   → GET    /api/v1/debts
  *
  * Links condicionais (apenas se a dívida estiver ativa):
- *   delete → DELETE /api/v1/debts/{id}
+ * delete → DELETE /api/v1/debts/{id}
  */
 @Component
 public class DebtModelAssembler
@@ -40,8 +40,9 @@ public class DebtModelAssembler
                 linkTo(methodOn(DebtController.class)
                         .update(response.getId(), null, null)).withRel("update"),
 
+                // CORRIGIDO: Passando 6 vezes o valor null
                 linkTo(methodOn(DebtController.class)
-                        .list(null, null, null, null, null)).withRel("collection")
+                        .list(null, null, null, null, null, null)).withRel("collection")
         );
 
         // Soft delete — só disponível se a dívida ainda estiver ativa
@@ -70,8 +71,9 @@ public class DebtModelAssembler
                 linkTo(methodOn(DebtController.class)
                         .update(response.getId(), null, null)).withRel("update"),
 
+                // CORRIGIDO: Passando 6 vezes o valor null
                 linkTo(methodOn(DebtController.class)
-                        .list(null, null, null, null, null)).withRel("collection")
+                        .list(null, null, null, null, null, null)).withRel("collection")
         );
 
         if (Boolean.TRUE.equals(response.getActive())) {

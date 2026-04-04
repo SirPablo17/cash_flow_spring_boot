@@ -1,5 +1,12 @@
 package pablo.nasc.cash_flow_spring_boot.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import pablo.nasc.cash_flow_spring_boot.assemblers.UserModelAssembler;
 import pablo.nasc.cash_flow_spring_boot.dto.request.user.ChangePasswordRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.request.user.UserUpdateRequest;
@@ -14,6 +21,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(name = "Usuários", description = "Gerenciamento do usuário autenticado")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
@@ -23,59 +32,84 @@ public class UserController {
     private final UserRepository userRepository;
     private final UserModelAssembler assembler;
 
-    /**
-     * GET /api/v1/users/me
-     * Retorna dados do usuário autenticado.
-     */
+    @Operation(
+            summary = "Retornar dados do usuário autenticado",
+            description = "Retorna os dados do usuário logado com links HATEOAS para navegação."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Dados retornados com sucesso"),
+            @ApiResponse(responseCode = "401", description = "Não autenticado",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getMe(
             @AuthenticationPrincipal UserDetails principal) {
+
         UserResponse response = userService.getMe(resolveUserId(principal));
         return ResponseEntity.ok(assembler.toModel(response));
     }
 
-    /**
-     * PUT /api/v1/users/me
-     * Atualiza nome e/ou e-mail do usuário autenticado.
-     *
-     * Retorna UserWithTokenResponse com novos tokens JWT.
-     * O cliente DEVE substituir os tokens armazenados pelos retornados aqui,
-     * pois o e-mail pode ter mudado e o token antigo não será mais válido.
-     */
+    @Operation(
+            summary = "Atualizar dados do usuário",
+            description = "Atualiza nome e/ou e-mail do usuário. " +
+                    "**Importante:** a resposta contém novos tokens JWT. " +
+                    "Se o e-mail for alterado, o token anterior não será mais válido. " +
+                    "Substitua os tokens armazenados pelos retornados nesta resposta."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Dados atualizados — novos tokens gerados"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "409", description = "E-mail já está em uso",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PutMapping("/me")
     public ResponseEntity<UserWithTokenResponse> update(
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody UserUpdateRequest request) {
+
         UserWithTokenResponse response = userService.update(resolveUserId(principal), request);
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * PATCH /api/v1/users/me/password
-     * Altera a senha do usuário autenticado.
-     * Retorna 204 No Content.
-     */
+    @Operation(
+            summary = "Alterar senha",
+            description = "Altera a senha do usuário autenticado. " +
+                    "Exige a senha atual para confirmar a identidade."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Senha alterada com sucesso"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "422", description = "Senha atual incorreta",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PatchMapping("/me/password")
     public ResponseEntity<Void> changePassword(
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody ChangePasswordRequest request) {
+
         userService.changePassword(resolveUserId(principal), request);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * DELETE /api/v1/users/me
-     * Desativa a conta do usuário autenticado (soft delete).
-     * Retorna 204 No Content.
-     */
+    @Operation(
+            summary = "Desativar conta",
+            description = "Realiza soft delete da conta do usuário autenticado. " +
+                    "O registro permanece no banco com active = false."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Conta desativada com sucesso"),
+            @ApiResponse(responseCode = "401", description = "Não autenticado",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @DeleteMapping("/me")
     public ResponseEntity<Void> deactivate(
             @AuthenticationPrincipal UserDetails principal) {
+
         userService.deactivate(resolveUserId(principal));
         return ResponseEntity.noContent().build();
     }
-
-    // ── Helper ────────────────────────────────────────────────────────────────
 
     private Long resolveUserId(UserDetails principal) {
         return userRepository.findByEmailAndActiveTrue(principal.getUsername())

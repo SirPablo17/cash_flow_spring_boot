@@ -1,5 +1,15 @@
 package pablo.nasc.cash_flow_spring_boot.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import pablo.nasc.cash_flow_spring_boot.assemblers.DebtModelAssembler;
+import pablo.nasc.cash_flow_spring_boot.assemblers.InstallmentModelAssembler;
 import pablo.nasc.cash_flow_spring_boot.dto.request.debt.DebtCreateRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.request.debt.DebtUpdateRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.response.debt.DebtResponse;
@@ -11,8 +21,12 @@ import pablo.nasc.cash_flow_spring_boot.services.debt.DebtWriteService;
 import pablo.nasc.cash_flow_spring_boot.services.installment.InstallmentServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,13 +35,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Controller do recurso principal — Debt.
- * Todos os endpoints exigem Bearer Token válido.
- * Base URL: /api/v1/debts
- *
- * Aplicação do ISP: injeta DebtReadService e DebtWriteService separadamente.
- */
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+
+@Tag(name = "Dívidas", description = "Recurso principal — gerenciamento de dívidas e parcelas")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/debts")
 @RequiredArgsConstructor
@@ -37,132 +48,185 @@ public class DebtController {
     private final DebtWriteService debtWriteService;
     private final InstallmentServiceImpl installmentService;
     private final UserRepository userRepository;
+    private final DebtModelAssembler debtAssembler;
+    private final InstallmentModelAssembler installmentAssembler;
 
-    /**
-     * GET /api/v1/debts
-     * Lista dívidas do usuário com filtros opcionais e paginação.
-     * Query params: active, categoryId, tagId, page, size, sort
-     * Retorna 200 OK.
-     */
+
+    @Operation(
+            summary = "Listar dívidas do usuário",
+            description = "Retorna as dívidas do usuário autenticado com filtros opcionais e paginação."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
+            @ApiResponse(responseCode = "401", description = "Não autenticado",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @GetMapping
-    public ResponseEntity<Page<DebtSummaryResponse>> list(
+    public ResponseEntity<PagedModel<DebtSummaryResponse>> list(
             @AuthenticationPrincipal UserDetails principal,
             @RequestParam(required = false) Boolean active,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long tagId,
-            Pageable pageable) {
+            @ParameterObject Pageable pageable,
+            PagedResourcesAssembler<DebtSummaryResponse> pagedAssembler) {
 
-        return ResponseEntity.ok(
-                debtReadService.listDebts(resolveUserId(principal), active, categoryId, tagId, pageable)
-        );
+        Page<DebtSummaryResponse> page = debtReadService
+                .listDebts(resolveUserId(principal), active, categoryId, tagId, pageable);
+
+        return ResponseEntity.ok(pagedAssembler.toModel(page, debtAssembler::toSummaryModel));
     }
 
-    /**
-     * GET /api/v1/debts/{id}
-     * Retorna uma dívida completa com parcelas e tags.
-     * Valida ownership — retorna 403 se a dívida pertencer a outro usuário.
-     * Retorna 200 OK, 403 Forbidden ou 404 Not Found.
-     */
+    @Operation(
+            summary = "Buscar dívida por ID",
+            description = "Retorna os detalhes completos de uma dívida incluindo parcelas e tags."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Dívida encontrada"),
+            @ApiResponse(responseCode = "403", description = "Dívida pertence a outro usuário",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "404", description = "Dívida não encontrada",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @GetMapping("/{id}")
     public ResponseEntity<DebtResponse> getById(
-            @PathVariable Long id,
+            @Parameter(description = "ID da dívida") @PathVariable Long id,
             @AuthenticationPrincipal UserDetails principal) {
 
-        return ResponseEntity.ok(debtReadService.getDebt(id, resolveUserId(principal)));
+        DebtResponse response = debtReadService.getDebt(id, resolveUserId(principal));
+        return ResponseEntity.ok(debtAssembler.toModel(response));
     }
 
-    /**
-     * POST /api/v1/debts
-     * Cria uma dívida e gera automaticamente todas as parcelas.
-     * Retorna 201 Created, 400 Bad Request ou 422 Unprocessable Entity.
-     */
+    @Operation(
+            summary = "Criar dívida",
+            description = "Cria uma nova dívida e gera automaticamente todas as parcelas. " +
+                    "Se informado interestRate, o cálculo usa a Tabela Price (Sistema Francês). " +
+                    "Sem juros, o valor é dividido igualmente entre as parcelas."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Dívida criada com parcelas geradas automaticamente"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "422", description = "Categoria inativa ou inexistente",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PostMapping
     public ResponseEntity<DebtResponse> create(
             @Valid @RequestBody DebtCreateRequest request,
             @AuthenticationPrincipal UserDetails principal) {
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(debtWriteService.createDebt(request, resolveUserId(principal)));
+        DebtResponse response = debtWriteService.createDebt(request, resolveUserId(principal));
+        return ResponseEntity.status(HttpStatus.CREATED).body(debtAssembler.toModel(response));
     }
 
-    /**
-     * PUT /api/v1/debts/{id}
-     * Atualiza campos informativos (título, descrição, credor).
-     * NÃO regenera parcelas.
-     * Retorna 200 OK, 403 Forbidden ou 404 Not Found.
-     */
+    @Operation(
+            summary = "Atualizar dívida",
+            description = "Atualiza apenas campos informativos (título, descrição, credor). " +
+                    "Campos financeiros não são atualizáveis para preservar as parcelas geradas."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Dívida atualizada"),
+            @ApiResponse(responseCode = "403", description = "Dívida pertence a outro usuário",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "404", description = "Dívida não encontrada",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PutMapping("/{id}")
     public ResponseEntity<DebtResponse> update(
-            @PathVariable Long id,
+            @Parameter(description = "ID da dívida") @PathVariable Long id,
             @Valid @RequestBody DebtUpdateRequest request,
             @AuthenticationPrincipal UserDetails principal) {
 
-        return ResponseEntity.ok(debtWriteService.updateDebt(id, request, resolveUserId(principal)));
+        DebtResponse response = debtWriteService.updateDebt(id, request, resolveUserId(principal));
+        return ResponseEntity.ok(debtAssembler.toModel(response));
     }
 
-    /**
-     * DELETE /api/v1/debts/{id}
-     * Soft delete + cancela parcelas PENDING e OVERDUE.
-     * Parcelas PAID são preservadas.
-     * Retorna 204 No Content, 403 Forbidden ou 404 Not Found.
-     */
+    @Operation(
+            summary = "Cancelar dívida",
+            description = "Realiza soft delete da dívida. " +
+                    "Parcelas PENDING e OVERDUE são canceladas automaticamente. " +
+                    "Parcelas PAID são preservadas para manter o histórico."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Dívida cancelada com sucesso"),
+            @ApiResponse(responseCode = "403", description = "Dívida pertence a outro usuário",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "404", description = "Dívida não encontrada",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long id,
+            @Parameter(description = "ID da dívida") @PathVariable Long id,
             @AuthenticationPrincipal UserDetails principal) {
 
         debtWriteService.deleteDebt(id, resolveUserId(principal));
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * GET /api/v1/debts/{id}/installments
-     * Lista todas as parcelas de uma dívida ordenadas por número.
-     * Valida ownership antes de listar.
-     * Retorna 200 OK, 403 Forbidden ou 404 Not Found.
-     */
+    @Operation(
+            summary = "Listar parcelas de uma dívida",
+            description = "Retorna todas as parcelas de uma dívida ordenadas por número."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Parcelas retornadas"),
+            @ApiResponse(responseCode = "403", description = "Dívida pertence a outro usuário",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "404", description = "Dívida não encontrada",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @GetMapping("/{id}/installments")
-    public ResponseEntity<List<InstallmentResponse>> listInstallments(
-            @PathVariable Long id,
+    public ResponseEntity<CollectionModel<InstallmentResponse>> listInstallments(
+            @Parameter(description = "ID da dívida") @PathVariable Long id,
             @AuthenticationPrincipal UserDetails principal) {
 
-        // Valida que a dívida existe e pertence ao usuário
         debtReadService.getDebt(id, resolveUserId(principal));
 
-        return ResponseEntity.ok(installmentService.listByDebt(id));
+        List<InstallmentResponse> installments = installmentService.listByDebt(id)
+                .stream()
+                .map(installmentAssembler::toModel)
+                .toList();
+
+        CollectionModel<InstallmentResponse> collection = CollectionModel.of(
+                installments,
+                linkTo(methodOn(DebtController.class).listInstallments(id, null)).withSelfRel(),
+                linkTo(methodOn(DebtController.class).getById(id, null)).withRel("debt")
+        );
+
+        return ResponseEntity.ok(collection);
     }
 
-    /**
-     * POST /api/v1/debts/{id}/tags/{tagId}
-     * Associa uma tag à dívida.
-     * Retorna 200 OK, 404 Not Found ou 409 Conflict se já associada.
-     */
+    @Operation(summary = "Associar tag à dívida")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tag associada com sucesso"),
+            @ApiResponse(responseCode = "404", description = "Dívida ou tag não encontrada",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "409", description = "Tag já associada a esta dívida",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PostMapping("/{id}/tags/{tagId}")
     public ResponseEntity<DebtResponse> addTag(
-            @PathVariable Long id,
-            @PathVariable Long tagId,
+            @Parameter(description = "ID da dívida") @PathVariable Long id,
+            @Parameter(description = "ID da tag") @PathVariable Long tagId,
             @AuthenticationPrincipal UserDetails principal) {
 
-        return ResponseEntity.ok(debtWriteService.addTag(id, tagId, resolveUserId(principal)));
+        DebtResponse response = debtWriteService.addTag(id, tagId, resolveUserId(principal));
+        return ResponseEntity.ok(debtAssembler.toModel(response));
     }
 
-    /**
-     * DELETE /api/v1/debts/{id}/tags/{tagId}
-     * Remove a associação de uma tag com a dívida.
-     * Retorna 204 No Content ou 404 Not Found.
-     */
+    @Operation(summary = "Remover tag de uma dívida")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Tag removida com sucesso"),
+            @ApiResponse(responseCode = "404", description = "Dívida ou tag não encontrada",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @DeleteMapping("/{id}/tags/{tagId}")
     public ResponseEntity<Void> removeTag(
-            @PathVariable Long id,
-            @PathVariable Long tagId,
+            @Parameter(description = "ID da dívida") @PathVariable Long id,
+            @Parameter(description = "ID da tag") @PathVariable Long tagId,
             @AuthenticationPrincipal UserDetails principal) {
 
         debtWriteService.removeTag(id, tagId, resolveUserId(principal));
         return ResponseEntity.noContent().build();
     }
-
-    // ── Helper ────────────────────────────────────────────────────────────────
 
     private Long resolveUserId(UserDetails principal) {
         return userRepository.findByEmailAndActiveTrue(principal.getUsername())

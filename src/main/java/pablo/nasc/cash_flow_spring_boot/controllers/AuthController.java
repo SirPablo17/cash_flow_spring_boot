@@ -1,5 +1,11 @@
 package pablo.nasc.cash_flow_spring_boot.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.LoginRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.RefreshTokenRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.RegisterRequest;
@@ -18,10 +24,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Controller de autenticação — endpoints públicos (sem JWT).
- * Base URL: /api/v1/auth
- */
+@Tag(name = "Autenticação", description = "Endpoints públicos para registro, login e renovação de token")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -32,72 +35,84 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
 
-    /**
-     * POST /api/v1/auth/register
-     * Registra novo usuário e cria UserConfig padrão via cascade.
-     * Retorna 201 Created + par de tokens JWT.
-     */
+    @Operation(
+            summary = "Registrar novo usuário",
+            description = "Cria um novo usuário e retorna um par de tokens JWT. " +
+                    "Um UserConfig padrão (BRL, alertas ativos, 3 dias) é criado automaticamente."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Usuário criado com sucesso"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos no corpo da requisição",
+                    content = @Content(schema = @Schema(hidden = true))),
+            @ApiResponse(responseCode = "409", description = "E-mail já cadastrado",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ConflictException("E-mail já cadastrado: " + request.getEmail());
         }
 
-        // Cria User
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setActive(true);
 
-        // Cria UserConfig padrão — cascade persiste junto com o User
         UserConfig config = new UserConfig();
         config.setUser(user);
         user.setUserConfig(config);
 
         userRepository.save(user);
 
-        String accessToken  = jwtUtil.generateAccessToken(user.getEmail());
-        String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
-
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(new AuthResponse(accessToken, refreshToken));
+                .body(new AuthResponse(
+                        jwtUtil.generateAccessToken(user.getEmail()),
+                        jwtUtil.generateRefreshToken(user.getEmail())
+                ));
     }
 
-    /**
-     * POST /api/v1/auth/login
-     * Autentica usuário e retorna par de tokens JWT.
-     * O AuthenticationManager valida e-mail + senha via DaoAuthenticationProvider.
-     * Retorna 200 OK ou 401 Unauthorized (tratado pelo GlobalExceptionHandler).
-     */
+    @Operation(
+            summary = "Autenticar usuário",
+            description = "Valida e-mail e senha e retorna um par de tokens JWT (access + refresh)."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Autenticação bem-sucedida"),
+            @ApiResponse(responseCode = "401", description = "Credenciais inválidas",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        String accessToken  = jwtUtil.generateAccessToken(request.getEmail());
-        String refreshToken = jwtUtil.generateRefreshToken(request.getEmail());
-
-        return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken));
+        return ResponseEntity.ok(new AuthResponse(
+                jwtUtil.generateAccessToken(request.getEmail()),
+                jwtUtil.generateRefreshToken(request.getEmail())
+        ));
     }
 
-    /**
-     * POST /api/v1/auth/refresh
-     * Valida o refresh token e emite um novo par de tokens.
-     * Retorna 200 OK ou 401 Unauthorized se o token for inválido/expirado.
-     */
+    @Operation(
+            summary = "Renovar access token",
+            description = "Valida o refresh token e emite um novo par de tokens JWT."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tokens renovados com sucesso"),
+            @ApiResponse(responseCode = "401", description = "Refresh token inválido ou expirado",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         if (!jwtUtil.isValid(request.getRefreshToken())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        String email        = jwtUtil.extractEmail(request.getRefreshToken());
-        String accessToken  = jwtUtil.generateAccessToken(email);
-        String refreshToken = jwtUtil.generateRefreshToken(email);
-
-        return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken));
+        String email = jwtUtil.extractEmail(request.getRefreshToken());
+        return ResponseEntity.ok(new AuthResponse(
+                jwtUtil.generateAccessToken(email),
+                jwtUtil.generateRefreshToken(email)
+        ));
     }
 }

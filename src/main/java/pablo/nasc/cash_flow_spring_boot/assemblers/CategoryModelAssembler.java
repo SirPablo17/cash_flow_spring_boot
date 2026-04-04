@@ -33,8 +33,9 @@ public class CategoryModelAssembler
                 linkTo(methodOn(CategoryController.class)
                         .update(response.getId(), null)).withRel("update"),
 
+                // Aqui está a correção: (null, null)
                 linkTo(methodOn(CategoryController.class)
-                        .listActive(null)).withRel("collection")
+                        .listActive(null, null)).withRel("collection")
         );
 
         // Link de exclusão apenas para categorias ativas
