@@ -7,17 +7,21 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import pablo.nasc.cash_flow_spring_boot.assemblers.TagModelAssembler;
 import pablo.nasc.cash_flow_spring_boot.dto.request.tag.TagRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.response.tag.TagResponse;
-import pablo.nasc.cash_flow_spring_boot.entities.*;
+import pablo.nasc.cash_flow_spring_boot.entities.Tag;
 import pablo.nasc.cash_flow_spring_boot.exceptions.ConflictException;
 import pablo.nasc.cash_flow_spring_boot.exceptions.ResourceNotFoundException;
 import pablo.nasc.cash_flow_spring_boot.repositories.TagRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +30,7 @@ import java.util.List;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
-@Tag(name = "Tags", description = "Gerenciamento de etiquetas para organização de dívidas")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Tags", description = "Gerenciamento de etiquetas para organização de dívidas")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/tags")
@@ -36,10 +40,7 @@ public class TagController {
     private final TagRepository tagRepository;
     private final TagModelAssembler assembler;
 
-    @Operation(
-            summary = "Listar todas as tags",
-            description = "Retorna todas as tags cadastradas com links HATEOAS."
-    )
+    @Operation(summary = "Listar todas as tags")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
             @ApiResponse(responseCode = "401", description = "Não autenticado",
@@ -53,12 +54,10 @@ public class TagController {
                 .map(assembler::toModel)
                 .toList();
 
-        CollectionModel<TagResponse> collection = CollectionModel.of(
+        return ResponseEntity.ok(CollectionModel.of(
                 tags,
                 linkTo(methodOn(TagController.class).listAll()).withSelfRel()
-        );
-
-        return ResponseEntity.ok(collection);
+        ));
     }
 
     @Operation(summary = "Buscar tag por ID")
@@ -71,9 +70,34 @@ public class TagController {
     public ResponseEntity<TagResponse> getById(
             @Parameter(description = "ID da tag") @PathVariable Long id) {
 
-        pablo.nasc.cash_flow_spring_boot.entities.Tag tag = tagRepository.findById(id)
+        Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag", id));
         return ResponseEntity.ok(assembler.toModel(toResponse(tag)));
+    }
+
+    @Operation(
+            summary = "Buscar tags por nome",
+            description = "Consulta personalizada — busca tags cujo nome contenha o termo informado " +
+                    "(case-insensitive, busca parcial). " +
+                    "Ex: /tags/search?name=nubank retorna '@CartaoNubank'."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Resultados da busca"),
+            @ApiResponse(responseCode = "400", description = "Parâmetro name é obrigatório",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
+    @GetMapping("/search")
+    public ResponseEntity<PagedModel<TagResponse>> search(
+            @Parameter(description = "Termo de busca no nome da tag", required = true)
+            @RequestParam String name,
+            @ParameterObject Pageable pageable,
+            PagedResourcesAssembler<TagResponse> pagedAssembler) {
+
+        Page<TagResponse> page = tagRepository
+                .searchByName(name, pageable)
+                .map(this::toResponse);
+
+        return ResponseEntity.ok(pagedAssembler.toModel(page, assembler));
     }
 
     @Operation(
@@ -85,7 +109,7 @@ public class TagController {
             @ApiResponse(responseCode = "201", description = "Tag criada com sucesso"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos",
                     content = @Content(schema = @Schema(hidden = true))),
-            @ApiResponse(responseCode = "409", description = "Nome de tag já existe",
+            @ApiResponse(responseCode = "409", description = "Nome já existe",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @PostMapping
@@ -94,7 +118,7 @@ public class TagController {
             throw new ConflictException("Já existe uma tag com o nome: " + request.getName());
         }
 
-        pablo.nasc.cash_flow_spring_boot.entities.Tag tag = new pablo.nasc.cash_flow_spring_boot.entities.Tag();
+        Tag tag = new Tag();
         tag.setName(request.getName());
         tag.setColorHex(request.getColorHex());
 
@@ -103,14 +127,9 @@ public class TagController {
                 .body(assembler.toModel(toResponse(tagRepository.save(tag))));
     }
 
-    @Operation(
-            summary = "Atualizar tag",
-            description = "Atualiza o nome e/ou a cor de uma tag existente."
-    )
+    @Operation(summary = "Atualizar tag")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Tag atualizada"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos",
-                    content = @Content(schema = @Schema(hidden = true))),
             @ApiResponse(responseCode = "404", description = "Tag não encontrada",
                     content = @Content(schema = @Schema(hidden = true)))
     })
@@ -119,7 +138,7 @@ public class TagController {
             @Parameter(description = "ID da tag") @PathVariable Long id,
             @Valid @RequestBody TagRequest request) {
 
-        pablo.nasc.cash_flow_spring_boot.entities.Tag tag = tagRepository.findById(id)
+        Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag", id));
         tag.setName(request.getName());
         tag.setColorHex(request.getColorHex());
@@ -133,7 +152,7 @@ public class TagController {
                     "As associações com dívidas são removidas automaticamente."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Tag removida com sucesso"),
+            @ApiResponse(responseCode = "204", description = "Tag removida"),
             @ApiResponse(responseCode = "404", description = "Tag não encontrada",
                     content = @Content(schema = @Schema(hidden = true)))
     })
@@ -141,13 +160,13 @@ public class TagController {
     public ResponseEntity<Void> delete(
             @Parameter(description = "ID da tag") @PathVariable Long id) {
 
-        pablo.nasc.cash_flow_spring_boot.entities.Tag tag = tagRepository.findById(id)
+        Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag", id));
         tagRepository.delete(tag);
         return ResponseEntity.noContent().build();
     }
 
-    private TagResponse toResponse(pablo.nasc.cash_flow_spring_boot.entities.Tag tag) {
+    private TagResponse toResponse(Tag tag) {
         return new TagResponse(tag.getId(), tag.getName(), tag.getColorHex());
     }
 }

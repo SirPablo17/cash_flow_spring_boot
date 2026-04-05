@@ -37,14 +37,13 @@ public class CategoryController {
     private final CategoryRepository categoryRepository;
     private final CategoryModelAssembler assembler;
 
-
     @Operation(
             summary = "Listar categorias ativas",
             description = "Retorna todas as categorias ativas com suporte a paginação e ordenação."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
-            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido",
+            @ApiResponse(responseCode = "401", description = "Não autenticado",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @GetMapping
@@ -59,11 +58,11 @@ public class CategoryController {
         return ResponseEntity.ok(pagedAssembler.toModel(page, assembler));
     }
 
-    @Operation(summary = "Buscar categoria por ID")
+    @Operation(
+            summary = "Buscar categoria por ID"
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Categoria encontrada"),
-            @ApiResponse(responseCode = "401", description = "Não autenticado",
-                    content = @Content(schema = @Schema(hidden = true))),
             @ApiResponse(responseCode = "404", description = "Categoria não encontrada",
                     content = @Content(schema = @Schema(hidden = true)))
     })
@@ -77,6 +76,31 @@ public class CategoryController {
     }
 
     @Operation(
+            summary = "Buscar categorias por nome",
+            description = "Consulta personalizada — busca categorias ativas cujo nome contenha " +
+                    "o termo informado (case-insensitive, busca parcial). " +
+                    "Ex: /categories/search?name=mora retorna 'Moradia'."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Resultados da busca"),
+            @ApiResponse(responseCode = "400", description = "Parâmetro name é obrigatório",
+                    content = @Content(schema = @Schema(hidden = true)))
+    })
+    @GetMapping("/search")
+    public ResponseEntity<PagedModel<CategoryResponse>> search(
+            @Parameter(description = "Termo de busca no nome da categoria", required = true)
+            @RequestParam String name,
+            @ParameterObject Pageable pageable,
+            PagedResourcesAssembler<CategoryResponse> pagedAssembler) {
+
+        Page<CategoryResponse> page = categoryRepository
+                .searchByName(name, pageable)
+                .map(this::toResponse);
+
+        return ResponseEntity.ok(pagedAssembler.toModel(page, assembler));
+    }
+
+    @Operation(
             summary = "Criar categoria",
             description = "Cria uma nova categoria de despesa. O nome deve ser único."
     )
@@ -84,7 +108,7 @@ public class CategoryController {
             @ApiResponse(responseCode = "201", description = "Categoria criada com sucesso"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos",
                     content = @Content(schema = @Schema(hidden = true))),
-            @ApiResponse(responseCode = "409", description = "Nome de categoria já existe",
+            @ApiResponse(responseCode = "409", description = "Nome já existe",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @PostMapping
@@ -106,14 +130,9 @@ public class CategoryController {
                 .body(assembler.toModel(toResponse(categoryRepository.save(category))));
     }
 
-    @Operation(
-            summary = "Atualizar categoria",
-            description = "Atualiza completamente os dados de uma categoria existente."
-    )
+    @Operation(summary = "Atualizar categoria")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Categoria atualizada"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos",
-                    content = @Content(schema = @Schema(hidden = true))),
             @ApiResponse(responseCode = "404", description = "Categoria não encontrada",
                     content = @Content(schema = @Schema(hidden = true)))
     })
@@ -134,11 +153,10 @@ public class CategoryController {
 
     @Operation(
             summary = "Desativar categoria",
-            description = "Realiza soft delete da categoria. " +
-                    "Não é possível desativar categorias com dívidas ativas vinculadas."
+            description = "Soft delete — não é possível desativar categorias com dívidas ativas."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Categoria desativada com sucesso"),
+            @ApiResponse(responseCode = "204", description = "Categoria desativada"),
             @ApiResponse(responseCode = "404", description = "Categoria não encontrada",
                     content = @Content(schema = @Schema(hidden = true))),
             @ApiResponse(responseCode = "422", description = "Categoria possui dívidas ativas",

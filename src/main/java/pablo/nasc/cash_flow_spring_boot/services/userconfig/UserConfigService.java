@@ -1,6 +1,8 @@
 package pablo.nasc.cash_flow_spring_boot.services.userconfig;
 
 import pablo.nasc.cash_flow_spring_boot.dto.request.userconfig.UserConfigUpdateRequest;
+import pablo.nasc.cash_flow_spring_boot.dto.response.userconfig.UserConfigAlertResponse;
+import pablo.nasc.cash_flow_spring_boot.dto.response.userconfig.UserConfigCurrencyResponse;
 import pablo.nasc.cash_flow_spring_boot.dto.response.userconfig.UserConfigResponse;
 import pablo.nasc.cash_flow_spring_boot.entities.UserConfig;
 import pablo.nasc.cash_flow_spring_boot.exceptions.ResourceNotFoundException;
@@ -9,34 +11,39 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Serviço responsável pelas operações de configuração do usuário autenticado.
- *
- * Endpoints cobertos:
- *   GET    /users/me/config   → getConfig()
- *   PATCH  /users/me/config   → updateConfig()
- *
- * O UserConfig é criado automaticamente via cascade no registro do User,
- * portanto este serviço nunca cria — apenas lê e atualiza.
- */
 @Service
 @RequiredArgsConstructor
 public class UserConfigService {
 
     private final UserConfigRepository userConfigRepository;
 
-    /**
-     * Retorna as configurações do usuário autenticado.
-     */
     @Transactional(readOnly = true)
     public UserConfigResponse getConfig(Long userId) {
-        UserConfig config = findByUserId(userId);
-        return toResponse(config);
+        return toResponse(findByUserId(userId));
     }
 
     /**
-     * Atualiza parcialmente as configurações do usuário.
+     * Retorna apenas as configurações de alerta do usuário.
      */
+    @Transactional(readOnly = true)
+    public UserConfigAlertResponse getAlertConfig(Long userId) {
+        UserConfig config = findByUserId(userId);
+        return new UserConfigAlertResponse(
+                config.getEnableEmailAlerts(),
+                config.getAlertDaysBeforeDue(),
+                config.getTimezone()
+        );
+    }
+
+    /**
+     * Retorna apenas a moeda preferida do usuário.
+     */
+    @Transactional(readOnly = true)
+    public UserConfigCurrencyResponse getCurrency(Long userId) {
+        UserConfig config = findByUserId(userId);
+        return new UserConfigCurrencyResponse(config.getPreferredCurrency());
+    }
+
     @Transactional
     public UserConfigResponse updateConfig(Long userId, UserConfigUpdateRequest request) {
         UserConfig config = findByUserId(userId);
@@ -49,7 +56,19 @@ public class UserConfigService {
         return toResponse(userConfigRepository.save(config));
     }
 
-    // ── Privados ──────────────────────────────────────────────────────────────
+    /**
+     * Restaura as configurações do usuário para os valores padrão do sistema:
+     *   preferredCurrency  = BRL
+     *   enableEmailAlerts  = true
+     *   alertDaysBeforeDue = 3
+     *   timezone           = America/Sao_Paulo
+     */
+    @Transactional
+    public UserConfigResponse resetToDefaults(Long userId) {
+        findByUserId(userId); // valida que o config existe
+        userConfigRepository.resetToDefaults(userId);
+        return toResponse(findByUserId(userId));
+    }
 
     private UserConfig findByUserId(Long userId) {
         return userConfigRepository.findByUserId(userId)
