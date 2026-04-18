@@ -9,12 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Agrupa dívidas em categorias de despesa.
- * Uma categoria pode conter múltiplas dívidas,
- * mas cada dívida pertence a apenas uma categoria (1:N).
- *
- * Regra: categorias inativas (active = false) não aceitam novas dívidas → HTTP 422.
- * Implementa soft delete via campo {@code active}.
+ * Categoria de despesa — agora privada por usuário.
+ * Cada usuário gerencia suas próprias categorias.
  *
  * Tabela: tb_categories
  */
@@ -32,43 +28,31 @@ public class Category {
     private Long id;
 
     /**
-     * Nome único da categoria (ex: Moradia, Saúde, Transporte).
-     * Constraint UNIQUE no banco garante sem duplicatas.
+     * Usuário dono desta categoria.
+     * A constraint UNIQUE de nome agora é por usuário — não mais global.
      */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore
+    private User user;
+
     @NotBlank
     @Size(min = 2, max = 80)
-    @Column(nullable = false, unique = true, length = 80)
+    @Column(nullable = false, length = 80)
     private String name;
 
-    /**
-     * Descrição opcional da categoria.
-     */
     @Size(max = 255)
     @Column(length = 255)
     private String description;
 
-    /**
-     * Código de ícone para uso no frontend (ex: fa-home, home_icon).
-     */
     @Size(max = 30)
     @Column(name = "icon_code", length = 30)
     private String iconCode;
 
-    /**
-     * Soft delete — categorias inativas não aparecem em listagens padrão
-     * e não aceitam novas dívidas.
-     */
     @NotNull
     @Column(nullable = false)
     private Boolean active = true;
 
-    // ── Relacionamentos ───────────────────────────────────────────────────────
-
-    /**
-     * Dívidas pertencentes a esta categoria.
-     * Lado "um" da relação — FK está em Debt.
-     * JsonIgnore evita loop Category → Debt → Category na serialização.
-     */
     @OneToMany(mappedBy = "category", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Debt> debts = new ArrayList<>();

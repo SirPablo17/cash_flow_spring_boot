@@ -28,21 +28,19 @@ public class CategoryModelAssembler
     public CategoryResponse toModel(CategoryResponse response) {
         response.add(
                 linkTo(methodOn(CategoryController.class)
-                        .getById(response.getId())).withSelfRel(),
+                        .getById(response.getId(), null)).withSelfRel(),
 
                 linkTo(methodOn(CategoryController.class)
-                        .update(response.getId(), null)).withRel("update"),
+                        .update(response.getId(), null, null)).withRel("update"),
 
-                // Aqui está a correção: (null, null)
                 linkTo(methodOn(CategoryController.class)
-                        .listActive(null, null)).withRel("collection")
+                        .listActive(null, null, null)).withRel("collection")
         );
 
-        // Link de exclusão apenas para categorias ativas
         if (Boolean.TRUE.equals(response.getActive())) {
             response.add(
                     linkTo(methodOn(CategoryController.class)
-                            .delete(response.getId())).withRel("deactivate")
+                            .delete(response.getId(), null)).withRel("deactivate")
             );
         }
 

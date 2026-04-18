@@ -28,16 +28,16 @@ public class TagModelAssembler
     public TagResponse toModel(TagResponse response) {
         response.add(
                 linkTo(methodOn(TagController.class)
-                        .getById(response.getId())).withSelfRel(),
+                        .getById(response.getId(), null)).withSelfRel(),
 
                 linkTo(methodOn(TagController.class)
-                        .update(response.getId(), null)).withRel("update"),
+                        .update(response.getId(), null, null)).withRel("update"),
 
                 linkTo(methodOn(TagController.class)
-                        .delete(response.getId())).withRel("delete"),
+                        .delete(response.getId(), null)).withRel("delete"),
 
                 linkTo(methodOn(TagController.class)
-                        .listAll()).withRel("collection")
+                        .listAll(null)).withRel("collection")
         );
 
         return response;

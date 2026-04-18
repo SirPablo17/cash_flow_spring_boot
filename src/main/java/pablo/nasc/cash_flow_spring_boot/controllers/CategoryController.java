@@ -16,6 +16,7 @@ import pablo.nasc.cash_flow_spring_boot.exceptions.BusinessException;
 import pablo.nasc.cash_flow_spring_boot.exceptions.ConflictException;
 import pablo.nasc.cash_flow_spring_boot.exceptions.ResourceNotFoundException;
 import pablo.nasc.cash_flow_spring_boot.repositories.CategoryRepository;
+import pablo.nasc.cash_flow_spring_boot.repositories.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
@@ -25,9 +26,11 @@ import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "Categorias", description = "Gerenciamento de categorias de despesa")
+@Tag(name = "Categorias", description = "Gerenciamento de categorias privadas do usuário autenticado")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/categories")
@@ -36,10 +39,11 @@ public class CategoryController {
 
     private final CategoryRepository categoryRepository;
     private final CategoryModelAssembler assembler;
+    private final UserRepository userRepository;
 
     @Operation(
-            summary = "Listar categorias ativas",
-            description = "Retorna todas as categorias ativas com suporte a paginação e ordenação."
+            summary = "Listar categorias ativas do usuário",
+            description = "Retorna apenas as categorias ativas criadas pelo usuário autenticado."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
@@ -48,38 +52,40 @@ public class CategoryController {
     })
     @GetMapping
     public ResponseEntity<PagedModel<CategoryResponse>> listActive(
+            @AuthenticationPrincipal UserDetails principal,
             @ParameterObject Pageable pageable,
             PagedResourcesAssembler<CategoryResponse> pagedAssembler) {
 
+        Long userId = resolveUserId(principal);
         Page<CategoryResponse> page = categoryRepository
-                .findAllByActiveTrue(pageable)
+                .findAllByUserIdAndActiveTrue(userId, pageable)
                 .map(this::toResponse);
 
         return ResponseEntity.ok(pagedAssembler.toModel(page, assembler));
     }
 
-    @Operation(
-            summary = "Buscar categoria por ID"
-    )
+    @Operation(summary = "Buscar categoria por ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Categoria encontrada"),
-            @ApiResponse(responseCode = "404", description = "Categoria não encontrada",
+            @ApiResponse(responseCode = "404", description = "Categoria não encontrada ou pertence a outro usuário",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @GetMapping("/{id}")
     public ResponseEntity<CategoryResponse> getById(
-            @Parameter(description = "ID da categoria") @PathVariable Long id) {
+            @Parameter(description = "ID da categoria") @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails principal) {
 
-        Category category = categoryRepository.findByIdAndActiveTrue(id)
+        Long userId = resolveUserId(principal);
+        Category category = categoryRepository.findByIdAndUserIdAndActiveTrue(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", id));
+
         return ResponseEntity.ok(assembler.toModel(toResponse(category)));
     }
 
     @Operation(
             summary = "Buscar categorias por nome",
-            description = "Consulta personalizada — busca categorias ativas cujo nome contenha " +
-                    "o termo informado (case-insensitive, busca parcial). " +
-                    "Ex: /categories/search?name=mora retorna 'Moradia'."
+            description = "Busca categorias ativas do usuário cujo nome contenha o termo informado " +
+                    "(case-insensitive). Ex: /categories/search?name=mora retorna 'Moradia'."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resultados da busca"),
@@ -88,13 +94,15 @@ public class CategoryController {
     })
     @GetMapping("/search")
     public ResponseEntity<PagedModel<CategoryResponse>> search(
-            @Parameter(description = "Termo de busca no nome da categoria", required = true)
+            @Parameter(description = "Termo de busca", required = true)
             @RequestParam String name,
+            @AuthenticationPrincipal UserDetails principal,
             @ParameterObject Pageable pageable,
             PagedResourcesAssembler<CategoryResponse> pagedAssembler) {
 
+        Long userId = resolveUserId(principal);
         Page<CategoryResponse> page = categoryRepository
-                .searchByName(name, pageable)
+                .searchByNameAndUserId(name, userId, pageable)
                 .map(this::toResponse);
 
         return ResponseEntity.ok(pagedAssembler.toModel(page, assembler));
@@ -102,24 +110,32 @@ public class CategoryController {
 
     @Operation(
             summary = "Criar categoria",
-            description = "Cria uma nova categoria de despesa. O nome deve ser único."
+            description = "Cria uma nova categoria para o usuário autenticado. " +
+                    "O nome deve ser único dentro das categorias do próprio usuário."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Categoria criada com sucesso"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos",
                     content = @Content(schema = @Schema(hidden = true))),
-            @ApiResponse(responseCode = "409", description = "Nome já existe",
+            @ApiResponse(responseCode = "409", description = "Você já possui uma categoria com este nome",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @PostMapping
     public ResponseEntity<CategoryResponse> create(
-            @Valid @RequestBody CategoryRequest request) {
+            @Valid @RequestBody CategoryRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
 
-        if (categoryRepository.existsByName(request.getName())) {
-            throw new ConflictException("Já existe uma categoria com o nome: " + request.getName());
+        Long userId = resolveUserId(principal);
+
+        // Unicidade por usuário — não mais global
+        if (categoryRepository.existsByNameAndUserId(request.getName(), userId)) {
+            throw new ConflictException("Você já possui uma categoria com o nome: " + request.getName());
         }
 
+        var user = userRepository.findByIdAndActiveTrue(userId).orElseThrow();
+
         Category category = new Category();
+        category.setUser(user);
         category.setName(request.getName());
         category.setDescription(request.getDescription());
         category.setIconCode(request.getIconCode());
@@ -130,18 +146,23 @@ public class CategoryController {
                 .body(assembler.toModel(toResponse(categoryRepository.save(category))));
     }
 
-    @Operation(summary = "Atualizar categoria")
+    @Operation(
+            summary = "Atualizar categoria",
+            description = "Atualiza os dados de uma categoria do usuário autenticado."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Categoria atualizada"),
-            @ApiResponse(responseCode = "404", description = "Categoria não encontrada",
+            @ApiResponse(responseCode = "404", description = "Categoria não encontrada ou pertence a outro usuário",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponse> update(
             @Parameter(description = "ID da categoria") @PathVariable Long id,
-            @Valid @RequestBody CategoryRequest request) {
+            @Valid @RequestBody CategoryRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
 
-        Category category = categoryRepository.findById(id)
+        Long userId = resolveUserId(principal);
+        Category category = categoryRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", id));
 
         category.setName(request.getName());
@@ -153,20 +174,23 @@ public class CategoryController {
 
     @Operation(
             summary = "Desativar categoria",
-            description = "Soft delete — não é possível desativar categorias com dívidas ativas."
+            description = "Soft delete da categoria do usuário. " +
+                    "Não é possível desativar se houver dívidas ativas vinculadas."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Categoria desativada"),
-            @ApiResponse(responseCode = "404", description = "Categoria não encontrada",
+            @ApiResponse(responseCode = "404", description = "Categoria não encontrada ou pertence a outro usuário",
                     content = @Content(schema = @Schema(hidden = true))),
             @ApiResponse(responseCode = "422", description = "Categoria possui dívidas ativas",
                     content = @Content(schema = @Schema(hidden = true)))
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
-            @Parameter(description = "ID da categoria") @PathVariable Long id) {
+            @Parameter(description = "ID da categoria") @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails principal) {
 
-        Category category = categoryRepository.findById(id)
+        Long userId = resolveUserId(principal);
+        Category category = categoryRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", id));
 
         boolean hasActiveDebts = category.getDebts().stream()
@@ -181,6 +205,14 @@ public class CategoryController {
         category.setActive(false);
         categoryRepository.save(category);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private Long resolveUserId(UserDetails principal) {
+        return userRepository.findByEmailAndActiveTrue(principal.getUsername())
+                .orElseThrow()
+                .getId();
     }
 
     private CategoryResponse toResponse(Category category) {

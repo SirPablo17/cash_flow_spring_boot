@@ -10,24 +10,15 @@ import pablo.nasc.cash_flow_spring_boot.dto.response.tag.TagResponse;
 import pablo.nasc.cash_flow_spring_boot.entities.*;
 import pablo.nasc.cash_flow_spring_boot.exceptions.*;
 import pablo.nasc.cash_flow_spring_boot.repositories.*;
+import pablo.nasc.cash_flow_spring_boot.services.installment.InstallmentGeneratorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pablo.nasc.cash_flow_spring_boot.services.installment.InstallmentGeneratorService;
 
 import java.util.List;
 
-/**
- * Implementação dos serviços de leitura e escrita de Debt.
- *
- * Aplicação do Dependency Inversion Principle (DIP):
- * depende apenas de interfaces e repositórios injetados via construtor.
- *
- * Aplicação do Interface Segregation Principle (ISP):
- * implementa DebtReadService e DebtWriteService separadamente.
- */
 @Service
 @RequiredArgsConstructor
 public class DebtServiceImpl implements DebtReadService, DebtWriteService {
@@ -67,9 +58,11 @@ public class DebtServiceImpl implements DebtReadService, DebtWriteService {
         User user = userRepository.findByIdAndActiveTrue(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
-        Category category = categoryRepository.findByIdAndActiveTrue(request.getCategoryId())
+        // Valida que a categoria existe, está ativa E pertence ao usuário
+        Category category = categoryRepository
+                .findByIdAndUserIdAndActiveTrue(request.getCategoryId(), userId)
                 .orElseThrow(() -> new BusinessException(
-                        "Categoria inativa ou inexistente. Não é possível criar dívidas nesta categoria."
+                        "Categoria inativa, inexistente ou não pertence ao usuário."
                 ));
 
         Debt debt = new Debt();
@@ -83,15 +76,13 @@ public class DebtServiceImpl implements DebtReadService, DebtWriteService {
         debt.setInterestRate(request.getInterestRate());
         debt.setCreditor(request.getCreditor());
 
-        // Associa tags opcionais
+        // Valida que as tags pertencem ao usuário
         if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
-            List<Tag> tags = tagRepository.findAllByIdIn(request.getTagIds());
+            List<Tag> tags = tagRepository.findAllByIdInAndUserId(request.getTagIds(), userId);
             debt.setTags(tags);
         }
 
-        // Gera parcelas automaticamente — persistidas via cascade
-        List<Installment> installments = installmentGeneratorService.generate(debt);
-        debt.setInstallments(installments);
+        debt.setInstallments(installmentGeneratorService.generate(debt));
 
         return toResponse(debtRepository.save(debt));
     }
@@ -102,7 +93,6 @@ public class DebtServiceImpl implements DebtReadService, DebtWriteService {
         Debt debt = debtRepository.findByIdAndUserIdAndActiveTrue(debtId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Debt", debtId));
 
-        // Apenas campos informativos são atualizáveis — campos financeiros não
         debt.setTitle(request.getTitle());
         debt.setDescription(request.getDescription());
         debt.setCreditor(request.getCreditor());
@@ -116,11 +106,8 @@ public class DebtServiceImpl implements DebtReadService, DebtWriteService {
         Debt debt = debtRepository.findByIdAndUserIdAndActiveTrue(debtId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Debt", debtId));
 
-        // Soft delete na dívida
         debt.setActive(false);
         debtRepository.save(debt);
-
-        // Cancela parcelas PENDING e OVERDUE — preserva PAID (histórico)
         installmentRepository.cancelPendingAndOverdueByDebtId(debtId);
     }
 
@@ -130,7 +117,8 @@ public class DebtServiceImpl implements DebtReadService, DebtWriteService {
         Debt debt = debtRepository.findByIdAndUserIdAndActiveTrue(debtId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Debt", debtId));
 
-        Tag tag = tagRepository.findById(tagId)
+        // Valida que a tag pertence ao usuário
+        Tag tag = tagRepository.findByIdAndUserId(tagId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag", tagId));
 
         boolean alreadyLinked = debt.getTags().stream()

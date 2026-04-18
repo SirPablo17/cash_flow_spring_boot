@@ -11,25 +11,44 @@ import java.util.Optional;
 
 /**
  * Repositório de {@link Category}.
+ * Todas as queries filtram por user.id — categorias são privadas por usuário.
  */
 public interface CategoryRepository extends JpaRepository<Category, Long> {
 
-    Page<Category> findAllByActiveTrue(Pageable pageable);
-
-    Optional<Category> findByIdAndActiveTrue(Long id);
-
-    boolean existsByName(String name);
+    /**
+     * Lista categorias ativas do usuário.
+     */
+    Page<Category> findAllByUserIdAndActiveTrue(Long userId, Pageable pageable);
 
     /**
-     * Consulta personalizada — busca categorias ativas cujo nome contenha
-     * o termo informado (case-insensitive).
-     * Usado no endpoint GET /categories/search?name=xyz
+     * Busca categoria ativa pelo id, garantindo que pertence ao usuário.
+     */
+    Optional<Category> findByIdAndUserIdAndActiveTrue(Long id, Long userId);
+
+    /**
+     * Busca categoria pelo id garantindo ownership (ativa ou inativa).
+     * Usado em operações de escrita (PUT, DELETE).
+     */
+    Optional<Category> findByIdAndUserId(Long id, Long userId);
+
+    /**
+     * Verifica duplicidade de nome dentro do escopo do usuário.
+     */
+    boolean existsByNameAndUserId(String name, Long userId);
+
+    /**
+     * Consulta personalizada — busca por nome parcial dentro do escopo do usuário.
      */
     @Query("""
         SELECT c FROM Category c
-        WHERE c.active = true
+        WHERE c.user.id = :userId
+          AND c.active = true
           AND LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))
         ORDER BY c.name ASC
     """)
-    Page<Category> searchByName(@Param("name") String name, Pageable pageable);
+    Page<Category> searchByNameAndUserId(
+            @Param("name") String name,
+            @Param("userId") Long userId,
+            Pageable pageable
+    );
 }
