@@ -1,24 +1,21 @@
 package pablo.nasc.cash_flow_spring_boot.dto.request.user;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * DTO de entrada para alteração de senha do usuário autenticado.
- * Endpoint: PATCH /api/v1/users/me/password
- *
- * Exige a senha atual para confirmar a identidade antes de trocar.
- * Retorna HTTP 204 No Content em caso de sucesso.
- */
+@Schema(description = "Dados para alteração de senha do usuário autenticado")
 @Getter
 @Setter
 public class ChangePasswordRequest {
 
+    @Schema(description = "Senha atual do usuário para confirmação de identidade", example = "senha123")
     @NotBlank(message = "A senha atual é obrigatória")
     private String currentPassword;
 
+    @Schema(description = "Nova senha desejada com no mínimo 8 caracteres", example = "novaSenha456", minLength = 8, maxLength = 255)
     @NotBlank(message = "A nova senha é obrigatória")
-    @Size(min = 8, max = 255, message = "A nova senha deve ter entre 8 e 255 caracteres")
+    @Size(min = 8, max = 255)
     private String newPassword;
 }

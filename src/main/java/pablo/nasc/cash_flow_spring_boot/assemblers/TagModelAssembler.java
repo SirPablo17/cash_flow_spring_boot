@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.assemblers;
 
+import lombok.Getter;
 import pablo.nasc.cash_flow_spring_boot.controllers.TagController;
 import pablo.nasc.cash_flow_spring_boot.dto.response.tag.TagResponse;
 import org.springframework.hateoas.server.mvc.RepresentationModelAssemblerSupport;
@@ -16,6 +17,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
  *   delete     → DELETE /api/v1/tags/{id}
  *   collection → GET    /api/v1/tags
  */
+@Getter
 @Component
 public class TagModelAssembler
         extends RepresentationModelAssemblerSupport<TagResponse, TagResponse> {

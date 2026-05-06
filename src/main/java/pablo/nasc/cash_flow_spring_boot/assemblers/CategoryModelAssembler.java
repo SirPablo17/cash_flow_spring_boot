@@ -1,9 +1,11 @@
 package pablo.nasc.cash_flow_spring_boot.assemblers;
 
+import lombok.Getter;
 import pablo.nasc.cash_flow_spring_boot.controllers.CategoryController;
 import pablo.nasc.cash_flow_spring_boot.dto.response.category.CategoryResponse;
 import org.springframework.hateoas.server.mvc.RepresentationModelAssemblerSupport;
 import org.springframework.stereotype.Component;
+
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
@@ -16,6 +18,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
  *   deactivate → DELETE /api/v1/categories/{id}
  *   collection → GET    /api/v1/categories
  */
+
 @Component
 public class CategoryModelAssembler
         extends RepresentationModelAssemblerSupport<CategoryResponse, CategoryResponse> {

@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.dto.request.debt;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -8,72 +9,52 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * DTO de entrada para criação de uma nova dívida.
- * Endpoint: POST /api/v1/debts
- *
- * Ao receber este DTO, o sistema automaticamente:
- *   1. Valida que a categoria existe e está ativa
- *   2. Calcula e gera todas as parcelas (Installments)
- *   3. Associa as tags informadas em tagIds
- *
- * Exemplo de payload:
- * {
- *   "categoryId": 2,
- *   "title": "Compra do iPhone 16 Pro",
- *   "description": "Comprado na loja Apple com juros de 1,99% a.m.",
- *   "totalAmount": 9999.00,
- *   "totalInstallments": 12,
- *   "startDate": "2025-08-10",
- *   "interestRate": 0.0199,
- *   "creditor": "Apple Store",
- *   "tagIds": [1, 3]
- * }
- */
+@Schema(description = "Dados para criação de uma nova dívida. As parcelas são geradas automaticamente.")
 @Getter
 @Setter
 public class DebtCreateRequest {
 
+    @Schema(description = "ID da categoria do usuário à qual a dívida pertence", example = "1")
     @NotNull(message = "A categoria é obrigatória")
     private Long categoryId;
 
+    @Schema(description = "Título descritivo da dívida", example = "Compra do iPhone 16 Pro", minLength = 3, maxLength = 150)
     @NotBlank(message = "O título é obrigatório")
-    @Size(min = 3, max = 150, message = "O título deve ter entre 3 e 150 caracteres")
+    @Size(min = 3, max = 150)
     private String title;
 
-    @Size(max = 500, message = "A descrição deve ter no máximo 500 caracteres")
+    @Schema(description = "Detalhamento opcional da dívida", example = "Comprado na Apple Store com juros de 1,99% a.m.")
+    @Size(max = 500)
     private String description;
 
+    @Schema(description = "Valor total da dívida antes do parcelamento", example = "9999.00", minimum = "0.01")
     @NotNull(message = "O valor total é obrigatório")
-    @DecimalMin(value = "0.01", message = "O valor total deve ser maior que 0.01")
-    @Digits(
-            integer = 13, fraction = 2,
-            message = "O valor total deve ter no máximo 13 dígitos inteiros e 2 decimais"
-    )
+    @DecimalMin("0.01")
+    @Digits(integer = 13, fraction = 2)
     private BigDecimal totalAmount;
 
+    @Schema(description = "Número de parcelas. Use 1 para pagamento à vista.", example = "12", minimum = "1", maximum = "360")
     @NotNull(message = "O número de parcelas é obrigatório")
-    @Min(value = 1,   message = "A dívida deve ter pelo menos 1 parcela")
-    @Max(value = 360, message = "O número de parcelas não pode exceder 360")
+    @Min(1) @Max(360)
     private Integer totalInstallments;
 
+    @Schema(description = "Data de vencimento da primeira parcela (não pode ser no passado)", example = "2025-09-01")
     @NotNull(message = "A data de início é obrigatória")
-    @FutureOrPresent(message = "A data de início não pode ser no passado")
+    @FutureOrPresent
     private LocalDate startDate;
 
-    /**
-     * Taxa de juros mensal em decimal (ex: 0.0199 = 1,99% a.m.).
-     * Opcional — nulo ou zero aciona cálculo simples sem juros.
-     */
-    @DecimalMin(value = "0.0", message = "A taxa de juros não pode ser negativa")
-    @DecimalMax(value = "1.0", message = "A taxa de juros não pode exceder 100% ao mês")
+    @Schema(
+            description = "Taxa de juros mensal em decimal. Nulo ou zero = sem juros (divisão simples). " +
+                    "Com valor = cálculo pela Tabela Price.",
+            example = "0.0199"
+    )
+    @DecimalMin("0.0") @DecimalMax("1.0")
     private BigDecimal interestRate;
 
-    @Size(max = 100, message = "O nome do credor deve ter no máximo 100 caracteres")
+    @Schema(description = "Nome do credor ou instituição financeira", example = "Apple Store")
+    @Size(max = 100)
     private String creditor;
 
-    /**
-     * Ids das tags a associar à dívida. Campo opcional.
-     */
+    @Schema(description = "IDs das tags do usuário para associar à dívida", example = "[1, 3]")
     private List<Long> tagIds;
 }

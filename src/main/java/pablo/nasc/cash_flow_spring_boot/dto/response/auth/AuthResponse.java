@@ -1,31 +1,25 @@
 package pablo.nasc.cash_flow_spring_boot.dto.response.auth;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-/**
- * DTO de saída para os endpoints de autenticação.
- * Endpoints: POST /auth/register | POST /auth/login | POST /auth/refresh
- *
- * Retorna o par de tokens JWT para o cliente armazenar
- * e usar nas requisições subsequentes via header:
- *   Authorization: Bearer {accessToken}
- */
+@Schema(description = "Par de tokens JWT retornado após autenticação ou renovação")
 @Getter
 @AllArgsConstructor
 public class AuthResponse {
 
-    /** Token de acesso de curta duração (ex: 24h). Usado no header Authorization. */
+    @Schema(description = "Token de acesso de curta duração (24h). Use no header Authorization: Bearer {token}", example = "eyJhbGciOiJIUzI1NiJ9...")
     private String accessToken;
 
-    /** Token de renovação de longa duração (ex: 7 dias). Usado em POST /auth/refresh. */
+    @Schema(description = "Token de renovação de longa duração (7 dias). Use em POST /auth/refresh para obter novos tokens.", example = "eyJhbGciOiJIUzI1NiJ9...")
     private String refreshToken;
 
-    /** Sempre "Bearer" — informa ao cliente o esquema de autenticação. */
+    @Schema(description = "Esquema de autenticação — sempre Bearer", example = "Bearer")
     private String tokenType = "Bearer";
 
     public AuthResponse(String accessToken, String refreshToken) {
-        this.accessToken  = accessToken;
+        this.accessToken = accessToken;
         this.refreshToken = refreshToken;
     }
 }

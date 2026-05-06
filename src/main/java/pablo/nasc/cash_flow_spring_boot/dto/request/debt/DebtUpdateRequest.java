@@ -1,28 +1,29 @@
 package pablo.nasc.cash_flow_spring_boot.dto.request.debt;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * DTO de entrada para atualização de uma dívida existente.
- * Endpoint: PUT /api/v1/debts/{id}
- *
- * Permite atualizar apenas campos informativos.
- * Campos financeiros (totalAmount, totalInstallments, interestRate, startDate)
- * NÃO são atualizáveis — isso evitaria inconsistências com as parcelas já geradas.
- */
+@Schema(
+        description = "Dados para atualização de uma dívida. " +
+                "Apenas campos informativos são atualizáveis — " +
+                "campos financeiros não podem ser alterados para preservar as parcelas geradas."
+)
 @Getter
 @Setter
 public class DebtUpdateRequest {
 
+    @Schema(description = "Novo título da dívida", example = "Notebook Dell Atualizado", minLength = 3, maxLength = 150)
     @NotBlank(message = "O título é obrigatório")
-    @Size(min = 3, max = 150, message = "O título deve ter entre 3 e 150 caracteres")
+    @Size(min = 3, max = 150)
     private String title;
 
-    @Size(max = 500, message = "A descrição deve ter no máximo 500 caracteres")
+    @Schema(description = "Nova descrição da dívida", example = "Comprado na Amazon Brasil")
+    @Size(max = 500)
     private String description;
 
-    @Size(max = 100, message = "O nome do credor deve ter no máximo 100 caracteres")
+    @Schema(description = "Nome atualizado do credor", example = "Amazon Brasil")
+    @Size(max = 100)
     private String creditor;
 }
