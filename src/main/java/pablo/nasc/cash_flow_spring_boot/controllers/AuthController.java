@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import pablo.nasc.cash_flow_spring_boot.assemblers.AuthModelAssembler;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.LoginRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.RefreshTokenRequest;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.RegisterRequest;
@@ -24,6 +25,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
 @Tag(name = "Autenticação", description = "Endpoints públicos para registro, login e renovação de token")
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -34,6 +40,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+    private final AuthModelAssembler assembler;
 
     @Operation(
             summary = "Registrar novo usuário",
@@ -65,12 +72,14 @@ public class AuthController {
 
         userRepository.save(user);
 
+        URI location = linkTo(methodOn(UserController.class).getMe(null)).toUri();
+
         return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(new AuthResponse(
+                .created(location)
+                .body(assembler.toModel(new AuthResponse(
                         jwtUtil.generateAccessToken(user.getEmail()),
                         jwtUtil.generateRefreshToken(user.getEmail())
-                ));
+                )));
     }
 
     @Operation(
@@ -88,10 +97,10 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
 
-        return ResponseEntity.ok(new AuthResponse(
+        return ResponseEntity.ok(assembler.toModel(new AuthResponse(
                 jwtUtil.generateAccessToken(request.getEmail()),
                 jwtUtil.generateRefreshToken(request.getEmail())
-        ));
+        )));
     }
 
     @Operation(
@@ -110,9 +119,9 @@ public class AuthController {
         }
 
         String email = jwtUtil.extractEmail(request.getRefreshToken());
-        return ResponseEntity.ok(new AuthResponse(
+        return ResponseEntity.ok(assembler.toModel(new AuthResponse(
                 jwtUtil.generateAccessToken(email),
                 jwtUtil.generateRefreshToken(email)
-        ));
+        )));
     }
 }

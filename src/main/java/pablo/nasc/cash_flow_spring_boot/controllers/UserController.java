@@ -63,7 +63,9 @@ public class UserController {
     public ResponseEntity<UserFinancialSummaryResponse> getSummary(
             @AuthenticationPrincipal UserDetails principal) {
 
-        return ResponseEntity.ok(userService.getFinancialSummary(resolveUserId(principal)));
+        return ResponseEntity.ok(
+                assembler.toSummaryModel(userService.getFinancialSummary(resolveUserId(principal)))
+        );
     }
 
     @Operation(
@@ -83,7 +85,9 @@ public class UserController {
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody UserUpdateRequest request) {
 
-        return ResponseEntity.ok(userService.update(resolveUserId(principal), request));
+        return ResponseEntity.ok(
+                assembler.toTokenModel(userService.update(resolveUserId(principal), request))
+        );
     }
 
     @Operation(

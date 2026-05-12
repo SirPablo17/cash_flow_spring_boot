@@ -66,7 +66,7 @@ public class UserConfigController {
             @AuthenticationPrincipal UserDetails principal) {
 
         return ResponseEntity.ok(
-                userConfigService.getAlertConfig(resolveUserId(principal))
+                assembler.toAlertModel(userConfigService.getAlertConfig(resolveUserId(principal)))
         );
     }
 
@@ -84,7 +84,7 @@ public class UserConfigController {
             @AuthenticationPrincipal UserDetails principal) {
 
         return ResponseEntity.ok(
-                userConfigService.getCurrency(resolveUserId(principal))
+                assembler.toCurrencyModel(userConfigService.getCurrency(resolveUserId(principal)))
         );
     }
 

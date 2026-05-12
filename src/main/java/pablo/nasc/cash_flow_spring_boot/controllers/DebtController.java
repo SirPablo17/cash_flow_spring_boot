@@ -27,12 +27,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.PagedModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
@@ -115,7 +115,9 @@ public class DebtController {
             @AuthenticationPrincipal UserDetails principal) {
 
         DebtResponse response = debtWriteService.createDebt(request, resolveUserId(principal));
-        return ResponseEntity.status(HttpStatus.CREATED).body(debtAssembler.toModel(response));
+        URI location = linkTo(methodOn(DebtController.class).getById(response.getId(), null)).toUri();
+
+        return ResponseEntity.created(location).body(debtAssembler.toModel(response));
     }
 
     @Operation(
@@ -188,7 +190,7 @@ public class DebtController {
         CollectionModel<InstallmentResponse> collection = CollectionModel.of(
                 installments,
                 linkTo(methodOn(DebtController.class).listInstallments(id, null)).withSelfRel(),
-                linkTo(methodOn(DebtController.class).getById(id, null)).withRel("debt")
+                linkTo(methodOn(DebtController.class).getById(id, null)).withRel("divida")
         );
 
         return ResponseEntity.ok(collection);

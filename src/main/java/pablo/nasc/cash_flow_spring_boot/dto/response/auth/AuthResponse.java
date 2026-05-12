@@ -3,11 +3,12 @@ package pablo.nasc.cash_flow_spring_boot.dto.response.auth;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.hateoas.RepresentationModel;
 
 @Schema(description = "Par de tokens JWT retornado após autenticação ou renovação")
 @Getter
 @AllArgsConstructor
-public class AuthResponse {
+public class AuthResponse extends RepresentationModel<AuthResponse> {
 
     @Schema(description = "Token de acesso de curta duração (24h). Use no header Authorization: Bearer {token}", example = "eyJhbGciOiJIUzI1NiJ9...")
     private String accessToken;

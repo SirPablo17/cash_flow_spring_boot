@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.assemblers;
 
+import pablo.nasc.cash_flow_spring_boot.controllers.ApiRootController;
 import pablo.nasc.cash_flow_spring_boot.controllers.DebtController;
 import pablo.nasc.cash_flow_spring_boot.controllers.InstallmentController;
 import pablo.nasc.cash_flow_spring_boot.dto.response.installment.InstallmentResponse;
@@ -39,21 +40,24 @@ public class InstallmentModelAssembler
                 linkTo(methodOn(InstallmentController.class)
                         .getById(response.getId(), null)).withSelfRel(),
 
+                linkTo(methodOn(ApiRootController.class)
+                        .index()).withRel("inicio"),
+
                 linkTo(methodOn(InstallmentController.class)
-                        .updateNotes(response.getId(), null, null)).withRel("notes"),
+                        .updateNotes(response.getId(), null, null)).withRel("observacoes"),
 
                 linkTo(methodOn(DebtController.class)
-                        .getById(response.getDebtId(), null)).withRel("debt")
+                        .getById(response.getDebtId(), null)).withRel("divida")
         );
 
         // Links condicionais — só disponíveis se não estiver em estado terminal
         if (isActionable(response.getStatus())) {
             response.add(
                     linkTo(methodOn(InstallmentController.class)
-                            .pay(response.getId(), null)).withRel("pay"),
+                            .pay(response.getId(), null)).withRel("pagar"),
 
                     linkTo(methodOn(InstallmentController.class)
-                            .cancel(response.getId(), null)).withRel("cancel")
+                            .cancel(response.getId(), null)).withRel("cancelar")
             );
         }
 

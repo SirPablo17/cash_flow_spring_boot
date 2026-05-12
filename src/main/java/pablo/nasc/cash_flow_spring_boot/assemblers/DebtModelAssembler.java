@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.assemblers;
 
+import pablo.nasc.cash_flow_spring_boot.controllers.ApiRootController;
 import pablo.nasc.cash_flow_spring_boot.controllers.DebtController;
 import pablo.nasc.cash_flow_spring_boot.dto.response.debt.DebtResponse;
 import pablo.nasc.cash_flow_spring_boot.dto.response.debt.DebtSummaryResponse;
@@ -24,32 +25,45 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 public class DebtModelAssembler
         extends RepresentationModelAssemblerSupport<DebtResponse, DebtResponse> {
 
-    public DebtModelAssembler() {
+    private final CategoryModelAssembler categoryAssembler;
+    private final TagModelAssembler tagAssembler;
+    private final InstallmentModelAssembler installmentAssembler;
+
+    public DebtModelAssembler(CategoryModelAssembler categoryAssembler,
+                              TagModelAssembler tagAssembler,
+                              InstallmentModelAssembler installmentAssembler) {
         super(DebtController.class, DebtResponse.class);
+        this.categoryAssembler = categoryAssembler;
+        this.tagAssembler = tagAssembler;
+        this.installmentAssembler = installmentAssembler;
     }
 
     @Override
     public DebtResponse toModel(DebtResponse response) {
+        addNestedLinks(response);
+
         response.add(
                 linkTo(methodOn(DebtController.class)
                         .getById(response.getId(), null)).withSelfRel(),
 
-                linkTo(methodOn(DebtController.class)
-                        .listInstallments(response.getId(), null)).withRel("installments"),
+                linkTo(methodOn(ApiRootController.class)
+                        .index()).withRel("inicio"),
 
                 linkTo(methodOn(DebtController.class)
-                        .update(response.getId(), null, null)).withRel("update"),
+                        .listInstallments(response.getId(), null)).withRel("parcelas"),
 
-                // CORRIGIDO: Passando 6 vezes o valor null
                 linkTo(methodOn(DebtController.class)
-                        .list(null, null, null, null, null, null)).withRel("collection")
+                        .update(response.getId(), null, null)).withRel("atualizar"),
+
+                linkTo(methodOn(DebtController.class)
+                        .list(null, null, null, null, null, null)).withRel("colecao")
         );
 
         // Soft delete — só disponível se a dívida ainda estiver ativa
         if (Boolean.TRUE.equals(response.getActive())) {
             response.add(
                     linkTo(methodOn(DebtController.class)
-                            .delete(response.getId(), null)).withRel("delete")
+                            .delete(response.getId(), null)).withRel("excluir")
             );
         }
 
@@ -61,28 +75,56 @@ public class DebtModelAssembler
      * Mesmos links do detalhe completo.
      */
     public DebtSummaryResponse toSummaryModel(DebtSummaryResponse response) {
+        addNestedLinks(response);
+
         response.add(
                 linkTo(methodOn(DebtController.class)
                         .getById(response.getId(), null)).withSelfRel(),
 
-                linkTo(methodOn(DebtController.class)
-                        .listInstallments(response.getId(), null)).withRel("installments"),
+                linkTo(methodOn(ApiRootController.class)
+                        .index()).withRel("inicio"),
 
                 linkTo(methodOn(DebtController.class)
-                        .update(response.getId(), null, null)).withRel("update"),
+                        .listInstallments(response.getId(), null)).withRel("parcelas"),
 
-                // CORRIGIDO: Passando 6 vezes o valor null
                 linkTo(methodOn(DebtController.class)
-                        .list(null, null, null, null, null, null)).withRel("collection")
+                        .update(response.getId(), null, null)).withRel("atualizar"),
+
+                linkTo(methodOn(DebtController.class)
+                        .list(null, null, null, null, null, null)).withRel("colecao")
         );
 
         if (Boolean.TRUE.equals(response.getActive())) {
             response.add(
                     linkTo(methodOn(DebtController.class)
-                            .delete(response.getId(), null)).withRel("delete")
+                            .delete(response.getId(), null)).withRel("excluir")
             );
         }
 
         return response;
+    }
+
+    private void addNestedLinks(DebtResponse response) {
+        if (response.getCategory() != null) {
+            categoryAssembler.toModel(response.getCategory());
+        }
+
+        if (response.getTags() != null) {
+            response.getTags().forEach(tagAssembler::toModel);
+        }
+
+        if (response.getInstallments() != null) {
+            response.getInstallments().forEach(installmentAssembler::toModel);
+        }
+    }
+
+    private void addNestedLinks(DebtSummaryResponse response) {
+        if (response.getCategory() != null) {
+            categoryAssembler.toModel(response.getCategory());
+        }
+
+        if (response.getTags() != null) {
+            response.getTags().forEach(tagAssembler::toModel);
+        }
     }
 }

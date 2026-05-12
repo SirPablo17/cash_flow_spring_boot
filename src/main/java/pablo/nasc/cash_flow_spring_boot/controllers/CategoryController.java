@@ -24,11 +24,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.PagedModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @Tag(name = "Categorias", description = "Gerenciamento de categorias privadas do usuário autenticado")
 @SecurityRequirement(name = "bearerAuth")
@@ -141,9 +145,12 @@ public class CategoryController {
         category.setIconCode(request.getIconCode());
         category.setActive(true);
 
+        Category saved = categoryRepository.save(category);
+        URI location = linkTo(methodOn(CategoryController.class).getById(saved.getId(), null)).toUri();
+
         return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(assembler.toModel(toResponse(categoryRepository.save(category))));
+                .created(location)
+                .body(assembler.toModel(toResponse(saved)));
     }
 
     @Operation(

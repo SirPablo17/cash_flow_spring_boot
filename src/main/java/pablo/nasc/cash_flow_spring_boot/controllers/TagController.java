@@ -23,12 +23,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.PagedModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
@@ -145,9 +145,12 @@ public class TagController {
         tag.setName(request.getName());
         tag.setColorHex(request.getColorHex());
 
+        Tag saved = tagRepository.save(tag);
+        URI location = linkTo(methodOn(TagController.class).getById(saved.getId(), null)).toUri();
+
         return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(assembler.toModel(toResponse(tagRepository.save(tag))));
+                .created(location)
+                .body(assembler.toModel(toResponse(saved)));
     }
 
     @Operation(summary = "Atualizar tag")
