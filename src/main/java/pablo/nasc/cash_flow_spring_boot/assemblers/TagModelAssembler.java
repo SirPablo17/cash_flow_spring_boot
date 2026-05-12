@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.assemblers;
 
+import pablo.nasc.cash_flow_spring_boot.controllers.ApiRootController;
 import pablo.nasc.cash_flow_spring_boot.controllers.TagController;
 import pablo.nasc.cash_flow_spring_boot.dto.response.tag.TagResponse;
 import org.springframework.hateoas.server.mvc.RepresentationModelAssemblerSupport;
@@ -30,14 +31,17 @@ public class TagModelAssembler
                 linkTo(methodOn(TagController.class)
                         .getById(response.getId(), null)).withSelfRel(),
 
-                linkTo(methodOn(TagController.class)
-                        .update(response.getId(), null, null)).withRel("update"),
+                linkTo(methodOn(ApiRootController.class)
+                        .index()).withRel("inicio"),
 
                 linkTo(methodOn(TagController.class)
-                        .delete(response.getId(), null)).withRel("delete"),
+                        .update(response.getId(), null, null)).withRel("atualizar"),
 
                 linkTo(methodOn(TagController.class)
-                        .listAll(null)).withRel("collection")
+                        .delete(response.getId(), null)).withRel("excluir"),
+
+                linkTo(methodOn(TagController.class)
+                        .listAll(null)).withRel("colecao")
         );
 
         return response;

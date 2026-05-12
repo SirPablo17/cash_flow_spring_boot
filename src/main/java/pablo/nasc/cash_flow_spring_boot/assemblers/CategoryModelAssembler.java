@@ -1,5 +1,6 @@
 package pablo.nasc.cash_flow_spring_boot.assemblers;
 
+import pablo.nasc.cash_flow_spring_boot.controllers.ApiRootController;
 import pablo.nasc.cash_flow_spring_boot.controllers.CategoryController;
 import pablo.nasc.cash_flow_spring_boot.dto.response.category.CategoryResponse;
 import org.springframework.hateoas.server.mvc.RepresentationModelAssemblerSupport;
@@ -30,17 +31,20 @@ public class CategoryModelAssembler
                 linkTo(methodOn(CategoryController.class)
                         .getById(response.getId(), null)).withSelfRel(),
 
-                linkTo(methodOn(CategoryController.class)
-                        .update(response.getId(), null, null)).withRel("update"),
+                linkTo(methodOn(ApiRootController.class)
+                        .index()).withRel("inicio"),
 
                 linkTo(methodOn(CategoryController.class)
-                        .listActive(null, null, null)).withRel("collection")
+                        .update(response.getId(), null, null)).withRel("atualizar"),
+
+                linkTo(methodOn(CategoryController.class)
+                        .listActive(null, null, null)).withRel("colecao")
         );
 
         if (Boolean.TRUE.equals(response.getActive())) {
             response.add(
                     linkTo(methodOn(CategoryController.class)
-                            .delete(response.getId(), null)).withRel("deactivate")
+                            .delete(response.getId(), null)).withRel("desativar")
             );
         }
 

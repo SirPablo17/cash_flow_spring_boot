@@ -45,6 +45,7 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/v1", "/api/v1/").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html").permitAll()
@@ -95,7 +96,7 @@ public class SecurityConfig {
     public OpenAPI customOpenAPI() {
         final String securitySchemeName = "bearerAuth"; // Use o mesmo nome aqui...
         return new OpenAPI()
-                .info(new Info().title("Cash Flow API").version("1.0"))
+                .info(new Info().title("API de Fluxo de Caixa").version("1.0"))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName)) // ...e aqui!
                 .components(new Components()
                         .addSecuritySchemes(securitySchemeName, // ...e aqui!

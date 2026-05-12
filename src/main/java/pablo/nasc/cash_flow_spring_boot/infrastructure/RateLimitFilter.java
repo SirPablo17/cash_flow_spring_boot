@@ -18,8 +18,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Filtro de Rate Limiting baseado em IP usando o algoritmo Token Bucket (Bucket4j 8.x).
@@ -35,8 +33,6 @@ import org.slf4j.LoggerFactory;
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
-
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final int      AUTH_LIMIT    = 10;
@@ -44,9 +40,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int      GENERAL_LIMIT  = 60;
     private static final Duration GENERAL_REFILL = Duration.ofMinutes(1);
+    private static final Duration BUCKET_TTL     = Duration.ofMinutes(15);
+    private static final Duration CLEANUP_EVERY  = Duration.ofMinutes(5);
 
-    private final Map<String, Bucket> authBuckets    = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> generalBuckets = new ConcurrentHashMap<>();
+    private final Map<String, ClientBucket> authBuckets    = new ConcurrentHashMap<>();
+    private final Map<String, ClientBucket> generalBuckets = new ConcurrentHashMap<>();
+    private volatile Instant lastCleanup = Instant.now();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -57,10 +56,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String  ip             = extractClientIp(request);
         boolean isAuthEndpoint = request.getRequestURI().contains("/api/v1/auth");
 
-        Bucket bucket = isAuthEndpoint
-                ? authBuckets.computeIfAbsent(ip,    k -> buildBucket(AUTH_LIMIT,    AUTH_REFILL))
-                : generalBuckets.computeIfAbsent(ip, k -> buildBucket(GENERAL_LIMIT, GENERAL_REFILL));
+        cleanupExpiredBuckets();
 
+        ClientBucket clientBucket = isAuthEndpoint
+                ? authBuckets.computeIfAbsent(ip,    k -> new ClientBucket(buildBucket(AUTH_LIMIT,    AUTH_REFILL)))
+                : generalBuckets.computeIfAbsent(ip, k -> new ClientBucket(buildBucket(GENERAL_LIMIT, GENERAL_REFILL)));
+
+        clientBucket.touch();
+        Bucket bucket = clientBucket.bucket();
         long availableTokens = bucket.getAvailableTokens();
         int  limit           = isAuthEndpoint ? AUTH_LIMIT : GENERAL_LIMIT;
         long refillSeconds   = isAuthEndpoint ? AUTH_REFILL.toSeconds() : GENERAL_REFILL.toSeconds();
@@ -115,10 +118,58 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * Extrai o IP real do cliente respeitando proxies e load balancers.
      */
     private String extractClientIp(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
         String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
+
+        if (isTrustedProxy(remoteAddr) && forwarded != null && !forwarded.isBlank()) {
             return forwarded.split(",")[0].trim();
         }
-        return request.getRemoteAddr();
+
+        return remoteAddr;
+    }
+
+    private boolean isTrustedProxy(String remoteAddr) {
+        return remoteAddr != null && (
+                remoteAddr.equals("127.0.0.1")
+                        || remoteAddr.equals("0:0:0:0:0:0:0:1")
+                        || remoteAddr.equals("::1")
+                        || remoteAddr.startsWith("10.")
+                        || remoteAddr.startsWith("192.168.")
+                        || remoteAddr.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*")
+        );
+    }
+
+    private void cleanupExpiredBuckets() {
+        Instant now = Instant.now();
+        if (Duration.between(lastCleanup, now).compareTo(CLEANUP_EVERY) < 0) {
+            return;
+        }
+
+        lastCleanup = now;
+        authBuckets.entrySet().removeIf(entry -> entry.getValue().isExpired(now));
+        generalBuckets.entrySet().removeIf(entry -> entry.getValue().isExpired(now));
+    }
+
+    private static final class ClientBucket {
+
+        private final Bucket bucket;
+        private volatile Instant lastAccess;
+
+        private ClientBucket(Bucket bucket) {
+            this.bucket = bucket;
+            this.lastAccess = Instant.now();
+        }
+
+        private Bucket bucket() {
+            return bucket;
+        }
+
+        private void touch() {
+            this.lastAccess = Instant.now();
+        }
+
+        private boolean isExpired(Instant now) {
+            return Duration.between(lastAccess, now).compareTo(BUCKET_TTL) > 0;
+        }
     }
 }
