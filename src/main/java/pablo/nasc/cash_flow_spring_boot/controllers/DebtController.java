@@ -38,6 +38,7 @@ import java.util.List;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @Tag(name = "Dívidas", description = "Recurso principal — gerenciamento de dívidas e parcelas")
+@SecurityRequirement(name = "apiKeyAuth")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/debts")

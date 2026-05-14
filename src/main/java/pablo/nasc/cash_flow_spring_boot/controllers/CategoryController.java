@@ -35,6 +35,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @Tag(name = "Categorias", description = "Gerenciamento de categorias privadas do usuário autenticado")
+@SecurityRequirement(name = "apiKeyAuth")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/categories")

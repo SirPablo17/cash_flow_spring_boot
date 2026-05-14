@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 @Tag(name = "Parcelas", description = "Recurso operacional — pagamento e controle de parcelas")
+@SecurityRequirement(name = "apiKeyAuth")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/installments")

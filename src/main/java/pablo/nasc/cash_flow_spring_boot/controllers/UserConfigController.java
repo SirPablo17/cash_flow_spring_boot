@@ -22,6 +22,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Configurações", description = "Preferências pessoais do usuário autenticado")
+@SecurityRequirement(name = "apiKeyAuth")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/users/me/config")

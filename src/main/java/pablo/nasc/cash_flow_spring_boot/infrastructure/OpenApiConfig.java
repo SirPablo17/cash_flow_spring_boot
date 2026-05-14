@@ -9,43 +9,46 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Configuração global da documentação OpenAPI / Swagger UI.
- *
- * Acesse em: http://localhost:8080/swagger-ui.html
- *
- * Define:
- *   - Informações gerais da API (título, versão, descrição, contato)
- *   - Esquema de autenticação Bearer JWT
- *     (botão "Authorize" no Swagger para inserir o token)
- */
 @Configuration
 public class OpenApiConfig {
 
     @Bean
     public OpenAPI openAPI() {
-        final String securitySchemeName = "bearerAuth";
+        final String apiKeySchemeName = "apiKeyAuth";
+        final String bearerSchemeName = "bearerAuth";
 
         return new OpenAPI()
                 .info(new Info()
-                        .title("API de Gerenciamento de Dívidas Pessoais")
+                        .title("API de Gerenciamento de Dividas Pessoais")
                         .description("""
-                                API RESTful para registro, acompanhamento e organização \
-                                de dívidas e compras parceladas.
-                                
-                                **Autenticação:** utilize o endpoint `/api/v1/auth/login` \
-                                para obter o Bearer Token e clique em **Authorize** para \
-                                autenticar as requisições.
+                                API RESTful para registro, acompanhamento e organizacao \
+                                de dividas e compras parceladas.
+
+                                **Chave de API:** envie o header `X-API-Key` em todas as \
+                                rotas versionadas da API.
+
+                                **Usuario autenticado:** nas rotas privadas, tambem envie \
+                                `Authorization: Bearer {token}` com o token obtido em \
+                                `/api/v1/auth/login`.
+
+                                **Idempotencia:** para operacoes mutaveis, envie \
+                                `Idempotency-Key` para permitir retentativas seguras.
                                 """)
                         .version("1.0.0")
                         .contact(new Contact()
                                 .name("SirPablo17")
                                 .email("pablo.rosario2019@gmail.com")))
                 .addSecurityItem(new SecurityRequirement()
-                        .addList(securitySchemeName))
+                        .addList(apiKeySchemeName)
+                        .addList(bearerSchemeName))
                 .components(new Components()
-                        .addSecuritySchemes(securitySchemeName, new SecurityScheme()
-                                .name(securitySchemeName)
+                        .addSecuritySchemes(apiKeySchemeName, new SecurityScheme()
+                                .name(ApiKeyAuthFilter.API_KEY_HEADER)
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .description("Informe a chave de API no header X-API-Key."))
+                        .addSecuritySchemes(bearerSchemeName, new SecurityScheme()
+                                .name(bearerSchemeName)
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")

@@ -96,4 +96,13 @@ public interface InstallmentRepository extends JpaRepository<Installment, Long> 
           AND i.status IN ('PENDING', 'OVERDUE')
     """)
     void cancelPendingAndOverdueByDebtId(@Param("debtId") Long debtId);
+
+    @Query("""
+        SELECT i FROM Installment i
+        JOIN FETCH i.debt d
+        LEFT JOIN FETCH d.category
+        WHERE d.user.id = :userId
+        ORDER BY i.dueDate ASC, i.installmentNumber ASC
+    """)
+    List<Installment> findAllByUserIdForExport(@Param("userId") Long userId);
 }

@@ -3,10 +3,12 @@ package pablo.nasc.cash_flow_spring_boot.repositories;
 import pablo.nasc.cash_flow_spring_boot.entities.Debt;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -60,4 +62,12 @@ public interface DebtRepository extends JpaRepository<Debt, Long> {
      * sobre dívidas já canceladas via soft delete.
      */
     Optional<Debt> findByIdAndUserIdAndActiveTrue(Long id, Long userId);
+
+    @EntityGraph(attributePaths = {"category", "tags"})
+    @Query("""
+        SELECT DISTINCT d FROM Debt d
+        WHERE d.user.id = :userId
+        ORDER BY d.createdAt DESC
+    """)
+    List<Debt> findAllByUserIdForExport(@Param("userId") Long userId);
 }

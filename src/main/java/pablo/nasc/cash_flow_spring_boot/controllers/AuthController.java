@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import pablo.nasc.cash_flow_spring_boot.assemblers.AuthModelAssembler;
 import pablo.nasc.cash_flow_spring_boot.dto.request.auth.LoginRequest;
@@ -31,6 +32,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @Tag(name = "Autenticação", description = "Endpoints públicos para registro, login e renovação de token")
+@SecurityRequirement(name = "apiKeyAuth")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

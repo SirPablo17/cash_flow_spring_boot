@@ -1,6 +1,7 @@
 package pablo.nasc.cash_flow_spring_boot.infrastructure;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,12 +21,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import io.swagger.v3.oas.models.Components;
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.security.SecurityRequirement;
-import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.info.Info;
-
 import java.util.List;
 
 @Configuration
@@ -33,8 +28,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final ApiKeyAuthFilter apiKeyAuthFilter;
     private final JwtAuthFilter jwtAuthFilter;
+    private final IdempotencyFilter idempotencyFilter;
     private final UserDetailsService userDetailsService;
+
+    @Value("${app.cors.allowed-origin-patterns:*}")
+    private List<String> allowedOriginPatterns;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -53,7 +53,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthFilter, ApiKeyAuthFilter.class)
+                .addFilterAfter(idempotencyFilter, JwtAuthFilter.class)
                 // Spring Security 7.x — método de referência no lugar de lambda
                 .headers(headers ->
                         headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable)
@@ -82,29 +84,27 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOriginPatterns(allowedOriginPatterns);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-API-Key",
+                "Idempotency-Key"
+        ));
+        config.setExposedHeaders(List.of(
+                "Location",
+                "X-RateLimit-Limit",
+                "X-RateLimit-Remaining",
+                "X-RateLimit-Reset",
+                "Retry-After",
+                "Idempotency-Replayed"
+        ));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    @Bean
-    public OpenAPI customOpenAPI() {
-        final String securitySchemeName = "bearerAuth"; // Use o mesmo nome aqui...
-        return new OpenAPI()
-                .info(new Info().title("API de Fluxo de Caixa").version("1.0"))
-                .addSecurityItem(new SecurityRequirement().addList(securitySchemeName)) // ...e aqui!
-                .components(new Components()
-                        .addSecuritySchemes(securitySchemeName, // ...e aqui!
-                                new SecurityScheme()
-                                        .name(securitySchemeName)
-                                        .type(SecurityScheme.Type.HTTP)
-                                        .scheme("bearer")
-                                        .bearerFormat("JWT")));
     }
 
 }

@@ -34,6 +34,7 @@ import java.util.List;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Tags", description = "Gerenciamento de etiquetas privadas do usuário autenticado")
+@SecurityRequirement(name = "apiKeyAuth")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/tags")
