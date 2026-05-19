@@ -6,11 +6,28 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class OpenApiConfig {
+
+    @Bean
+    public GroupedOpenApi v1Api() {
+        return GroupedOpenApi.builder()
+                .group("v1")
+                .pathsToMatch("/api/v1", "/api/v1/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi v2Api() {
+        return GroupedOpenApi.builder()
+                .group("v2")
+                .pathsToMatch("/api/v2/**")
+                .build();
+    }
 
     @Bean
     public OpenAPI openAPI() {
@@ -28,8 +45,7 @@ public class OpenApiConfig {
                                 rotas versionadas da API.
 
                                 **Usuario autenticado:** nas rotas privadas, tambem envie \
-                                `Authorization: Bearer {token}` com o token obtido em \
-                                `/api/v1/auth/login`.
+                                `Authorization: Bearer {token}` com o token obtido no login.
 
                                 **Idempotencia:** para operacoes mutaveis, envie \
                                 `Idempotency-Key` para permitir retentativas seguras.

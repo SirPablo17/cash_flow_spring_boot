@@ -24,7 +24,7 @@ import pablo.nasc.cash_flow_spring_boot.services.export.CashFlowExcelExportServi
 @SecurityRequirement(name = "apiKeyAuth")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
-@RequestMapping("/api/v2/exports")
+@RequestMapping("/api/v2/exportacoes")
 @RequiredArgsConstructor
 public class ExportV2Controller {
 
@@ -44,7 +44,7 @@ public class ExportV2Controller {
             @ApiResponse(responseCode = "401", description = "Chave de API ou token ausente/invalido",
                     content = @Content(schema = @Schema(hidden = true)))
     })
-    @GetMapping(value = "/cash-flow/excel", produces = XLSX_MEDIA_TYPE)
+    @GetMapping(value = "/fluxo-caixa/excel", produces = XLSX_MEDIA_TYPE)
     public ResponseEntity<byte[]> exportCashFlowExcel(
             @AuthenticationPrincipal UserDetails principal) {
 

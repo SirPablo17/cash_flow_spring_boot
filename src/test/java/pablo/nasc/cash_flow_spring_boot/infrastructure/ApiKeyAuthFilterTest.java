@@ -42,7 +42,7 @@ class ApiKeyAuthFilterTest {
     void protectsV2ApiRequests() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "GET",
-                "/api/v2/exports/cash-flow/excel"
+                "/api/v2/exportacoes/fluxo-caixa/excel"
         );
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean called = new AtomicBoolean(false);

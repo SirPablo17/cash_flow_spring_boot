@@ -37,8 +37,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         return "OPTIONS".equalsIgnoreCase(request.getMethod())
                 || path.equals("/api/v1")
                 || path.equals("/api/v1/")
+                || path.equals("/api/v2")
+                || path.equals("/api/v2/")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v1/api-docs")
+                || path.startsWith("/v2/api-docs")
+                || path.equals("/internal/api-docs/swagger-config")
                 || path.startsWith("/h2-console")
                 || !isVersionedApiPath(path);
     }
