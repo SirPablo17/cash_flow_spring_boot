@@ -4,14 +4,23 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.List;
+
 @Configuration
 public class OpenApiConfig {
+
+    @Value("${app.server.prod-url}")
+    private String productionServerUrl;
 
     @Bean
     public GroupedOpenApi v1Api() {
@@ -30,11 +39,29 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GlobalOpenApiCustomizer rateLimitResponseCustomizer() {
+        return openApi -> {
+            if (openApi.getPaths() == null) {
+                return;
+            }
+
+            openApi.getPaths().values().forEach(pathItem ->
+                    pathItem.readOperations().forEach(operation ->
+                            operation.getResponses().addApiResponse("429", tooManyRequestsResponse())
+                    )
+            );
+        };
+    }
+
+    @Bean
     public OpenAPI openAPI() {
         final String apiKeySchemeName = "apiKeyAuth";
         final String bearerSchemeName = "bearerAuth";
 
         return new OpenAPI()
+                .servers(List.of(new Server()
+                        .url(productionServerUrl)
+                        .description("Render production server")))
                 .info(new Info()
                         .title("API de Gerenciamento de Dividas Pessoais")
                         .description("""
@@ -69,5 +96,11 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("Insira o token JWT obtido no login. Ex: eyJ...")));
+    }
+
+    private ApiResponse tooManyRequestsResponse() {
+        return new ApiResponse()
+                .description("Too Many Requests - limite de requisicoes por minuto atingido. "
+                        + "Verifique o header Retry-After para saber quantos segundos aguardar.");
     }
 }

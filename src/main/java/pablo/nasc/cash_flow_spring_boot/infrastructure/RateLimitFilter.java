@@ -48,13 +48,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private volatile Instant lastCleanup = Instant.now();
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return "OPTIONS".equalsIgnoreCase(request.getMethod())
+                || !isVersionedApiEndpoint(request.getRequestURI());
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        String  ip             = extractClientIp(request);
-        boolean isAuthEndpoint = request.getRequestURI().contains("/api/v1/auth");
+        String path = request.getRequestURI();
+        String ip = extractClientIp(request);
+        boolean isAuthEndpoint = isAuthEndpoint(path);
 
         cleanupExpiredBuckets();
 
@@ -74,7 +81,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
         } else {
             log.warn("[RateLimit] IP {} bloqueado em {} — limite de {} req/min atingido",
-                    ip, request.getRequestURI(), limit);
+                    ip, path, limit);
 
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -89,11 +96,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     "error",     "Too Many Requests",
                     "message",   "Limite de requisições atingido. Tente novamente em "
                             + refillSeconds + " segundos.",
-                    "path",      request.getRequestURI()
+                    "path",      path
             );
 
             response.getWriter().write(objectMapper.writeValueAsString(body));
         }
+    }
+
+    private boolean isVersionedApiEndpoint(String path) {
+        return path != null && (
+                path.equals("/api/v1")
+                        || path.equals("/api/v1/")
+                        || path.startsWith("/api/v1/")
+                        || path.equals("/api/v2")
+                        || path.equals("/api/v2/")
+                        || path.startsWith("/api/v2/")
+        );
+    }
+
+    private boolean isAuthEndpoint(String path) {
+        return path != null && (
+                path.equals("/api/v1/auth")
+                        || path.startsWith("/api/v1/auth/")
+                        || path.equals("/api/v2/autenticacao")
+                        || path.startsWith("/api/v2/autenticacao/")
+        );
     }
 
     /**
