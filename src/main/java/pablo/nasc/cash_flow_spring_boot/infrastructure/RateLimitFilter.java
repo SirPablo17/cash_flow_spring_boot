@@ -49,8 +49,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return "OPTIONS".equalsIgnoreCase(request.getMethod())
-                || !isVersionedApiEndpoint(request.getRequestURI());
+        return "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
     @Override
@@ -101,17 +100,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
             response.getWriter().write(objectMapper.writeValueAsString(body));
         }
-    }
-
-    private boolean isVersionedApiEndpoint(String path) {
-        return path != null && (
-                path.equals("/api/v1")
-                        || path.equals("/api/v1/")
-                        || path.startsWith("/api/v1/")
-                        || path.equals("/api/v2")
-                        || path.equals("/api/v2/")
-                        || path.startsWith("/api/v2/")
-        );
     }
 
     private boolean isAuthEndpoint(String path) {

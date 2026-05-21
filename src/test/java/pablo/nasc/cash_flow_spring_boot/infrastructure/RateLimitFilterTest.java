@@ -66,15 +66,20 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void ignoresNonApiEndpoints() throws Exception {
+    void limitsPublicNonApiEndpointsAfterSixtyRequestsPerMinute() throws Exception {
         AtomicInteger calls = new AtomicInteger();
 
-        for (int i = 0; i < 61; i++) {
+        for (int i = 0; i < 60; i++) {
             MockHttpServletResponse response = doFilter("/swagger-ui/index.html", "203.0.113.40", calls);
             assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
         }
 
-        assertThat(calls).hasValue(61);
+        MockHttpServletResponse blocked = doFilter("/swagger-ui/index.html", "203.0.113.40", calls);
+
+        assertThat(calls).hasValue(60);
+        assertThat(blocked.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
+        assertThat(blocked.getHeader("X-RateLimit-Limit")).isEqualTo("60");
+        assertThat(blocked.getContentAsString()).contains("\"path\":\"/swagger-ui/index.html\"");
     }
 
     private MockHttpServletResponse doFilter(String path, String ip, AtomicInteger calls) throws Exception {

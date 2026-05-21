@@ -7,20 +7,16 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
+import org.springdoc.core.customizers.ServerBaseUrlCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.List;
+import org.springframework.http.HttpRequest;
+import org.springframework.util.StringUtils;
 
 @Configuration
 public class OpenApiConfig {
-
-    @Value("${app.server.prod-url}")
-    private String productionServerUrl;
 
     @Bean
     public GroupedOpenApi v1Api() {
@@ -54,14 +50,28 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public ServerBaseUrlCustomizer serverBaseUrlCustomizer() {
+        return (serverBaseUrl, request) -> {
+            String forwardedBaseUrl = forwardedBaseUrl(request);
+            if (forwardedBaseUrl != null) {
+                return forwardedBaseUrl;
+            }
+
+            String host = firstHeaderValue(request, "Host");
+            if (StringUtils.hasText(host)) {
+                return request.getURI().getScheme() + "://" + host;
+            }
+
+            return serverBaseUrl;
+        };
+    }
+
+    @Bean
     public OpenAPI openAPI() {
         final String apiKeySchemeName = "apiKeyAuth";
         final String bearerSchemeName = "bearerAuth";
 
         return new OpenAPI()
-                .servers(List.of(new Server()
-                        .url(productionServerUrl)
-                        .description("Render production server")))
                 .info(new Info()
                         .title("API de Gerenciamento de Dividas Pessoais")
                         .description("""
@@ -102,5 +112,42 @@ public class OpenApiConfig {
         return new ApiResponse()
                 .description("Too Many Requests - limite de requisicoes por minuto atingido. "
                         + "Verifique o header Retry-After para saber quantos segundos aguardar.");
+    }
+
+    private String forwardedBaseUrl(HttpRequest request) {
+        String forwardedHost = firstHeaderValue(request, "X-Forwarded-Host");
+        if (!StringUtils.hasText(forwardedHost)) {
+            return null;
+        }
+
+        String forwardedProto = firstHeaderValue(request, "X-Forwarded-Proto");
+        String scheme = StringUtils.hasText(forwardedProto)
+                ? forwardedProto
+                : request.getURI().getScheme();
+
+        String forwardedPort = firstHeaderValue(request, "X-Forwarded-Port");
+        String host = appendPortIfNeeded(forwardedHost, scheme, forwardedPort);
+
+        return scheme + "://" + host;
+    }
+
+    private String appendPortIfNeeded(String host, String scheme, String port) {
+        if (!StringUtils.hasText(port) || host.contains(":")) {
+            return host;
+        }
+
+        boolean defaultPort = ("http".equalsIgnoreCase(scheme) && "80".equals(port))
+                || ("https".equalsIgnoreCase(scheme) && "443".equals(port));
+
+        return defaultPort ? host : host + ":" + port;
+    }
+
+    private String firstHeaderValue(HttpRequest request, String headerName) {
+        String value = request.getHeaders().getFirst(headerName);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+
+        return value.split(",")[0].trim();
     }
 }

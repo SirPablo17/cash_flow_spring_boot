@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -40,12 +42,25 @@ class OpenApiVersionDocsTest {
 
     @Test
     void v1DocsDoNotExposeV2Endpoints() throws Exception {
-        mockMvc.perform(get("/v1/api-docs"))
+        mockMvc.perform(get("/v1/api-docs").header("Host", "localhost:8080"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("\"url\":\"https://cash-flow-spring-boot.onrender.com\"")))
-                .andExpect(content().string(not(containsString("\"url\":\"https://cash-flow-spring-boot.onr\""))))
+                .andExpect(content().string(containsString("\"url\":\"http://localhost:8080\"")))
+                .andExpect(content().string(not(containsString("https://cash-flow-spring-boot.onrender.com"))))
                 .andExpect(content().string(containsString("/api/v1/auth/login")))
                 .andExpect(content().string(not(containsString("/api/v2/exportacoes/fluxo-caixa/excel"))));
+    }
+
+    @Test
+    void serverBaseUrlCustomizerUsesRenderForwardedHeaders() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/v1/api-docs");
+        request.addHeader("X-Forwarded-Proto", "https");
+        request.addHeader("X-Forwarded-Host", "cash-flow-spring-boot.onrender.com");
+
+        String serverBaseUrl = new OpenApiConfig()
+                .serverBaseUrlCustomizer()
+                .customize("http://localhost:8080", new ServletServerHttpRequest(request));
+
+        assertThat(serverBaseUrl).isEqualTo("https://cash-flow-spring-boot.onrender.com");
     }
 
     @Test

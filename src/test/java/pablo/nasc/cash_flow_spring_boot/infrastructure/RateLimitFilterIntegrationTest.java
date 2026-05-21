@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -34,6 +35,40 @@ class RateLimitFilterIntegrationTest {
                 .andExpect(header().string("X-RateLimit-Limit", "60"))
                 .andExpect(header().string("X-RateLimit-Remaining", "0"))
                 .andExpect(jsonPath("$.path").value("/api/v1/debts"));
+    }
+
+    @Test
+    void rateLimitAppliesToPublicRootEndpointWithoutToken() throws Exception {
+        String ip = "203.0.113.60";
+
+        for (int i = 0; i < 60; i++) {
+            mockMvc.perform(get("/api/v1").with(remoteAddr(ip)))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("X-RateLimit-Limit", "60"));
+        }
+
+        mockMvc.perform(get("/api/v1").with(remoteAddr(ip)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("X-RateLimit-Limit", "60"))
+                .andExpect(header().string("X-RateLimit-Remaining", "0"))
+                .andExpect(jsonPath("$.path").value("/api/v1"));
+    }
+
+    @Test
+    void rateLimitRunsBeforeApiKeyAuthenticationOnPublicAuthEndpointsWithoutToken() throws Exception {
+        String ip = "203.0.113.70";
+
+        for (int i = 0; i < 10; i++) {
+            mockMvc.perform(post("/api/v1/auth/login").with(remoteAddr(ip)))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(header().string("X-RateLimit-Limit", "10"));
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login").with(remoteAddr(ip)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("X-RateLimit-Limit", "10"))
+                .andExpect(header().string("X-RateLimit-Remaining", "0"))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/login"));
     }
 
     private static RequestPostProcessor remoteAddr(String ip) {
